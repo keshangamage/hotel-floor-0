@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Scan the shared UI workspace package for Tailwind classes. */
+@source "../../../packages/ui/src";
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

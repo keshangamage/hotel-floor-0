@@ -1,4 +1,6 @@
 import Image from "next/image";
+import { Button } from "@repo/ui/button";
+import { Card } from "@repo/ui/card";
 
 export default function Home() {
   return (
@@ -38,6 +40,15 @@ export default function Home() {
             center.
           </p>
         </div>
+        <Card title="Shared UI" className="w-full">
+          This card and the button below come from{" "}
+          <code className="font-mono">@repo/ui</code>, a workspace package built
+          and type checked by Turborepo.
+          <div className="mt-4 flex gap-3">
+            <Button>Primary</Button>
+            <Button variant="secondary">Secondary</Button>
+          </div>
+        </Card>
         <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
           <a
             className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
