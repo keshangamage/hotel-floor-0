@@ -1,10 +1,5 @@
-/**
- * Hotel metrics, in metres.
- *
- * These are deliberately real-world proportions rather than "feels about right"
- * numbers: movement speed, camera height and fog density are all tuned against
- * them, so changing one here changes how the whole game reads.
- */
+// Hotel metrics in metres. Movement speed, eye height and fog are all tuned
+// against these, so changing one changes how the whole game reads.
 
 /** Clear width of a corridor, wall face to wall face. */
 export const CORRIDOR_WIDTH = 2.0;
@@ -15,7 +10,7 @@ export const WALL_THICKNESS = 0.15;
 
 export const DOOR_WIDTH = 0.9;
 export const DOOR_HEIGHT = 2.05;
-/** How far a doorway is set back into the wall, forming the alcove. */
+/** How far a doorway sits back into the wall, forming the alcove. */
 export const DOOR_RECESS = 0.12;
 
 /** Distance between adjacent door centres on the same side. */
@@ -25,10 +20,10 @@ export const ROOM_PITCH = 4.0;
 export const TRIM_HEIGHT = 0.12;
 export const TRIM_DEPTH = 0.03;
 
-/** Thickness of floor and ceiling slabs. Floor top sits at y = 0. */
+/** Floor and ceiling slabs. Floor top sits at y = 0. */
 export const SLAB_THICKNESS = 0.1;
 
-// -- Player ----------------------------------------------------------------
+// Player
 
 /** Horizontal half-extent of the player's collision box. */
 export const PLAYER_RADIUS = 0.3;

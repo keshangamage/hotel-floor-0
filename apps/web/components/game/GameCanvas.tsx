@@ -3,51 +3,38 @@
 import { Canvas } from "@react-three/fiber";
 
 import { Corridor } from "@/components/environment/Corridor";
+import { HotelLighting } from "@/components/lighting/HotelLighting";
 import { FOG_COLOR, FOG_DENSITY } from "@/game/data/atmosphere";
+import { CORRIDOR_LAYOUT, GREYBOX_CORRIDOR } from "@/game/data/corridorLayout";
 import { EYE_HEIGHT } from "@/game/data/dimensions";
-import { GREYBOX_CORRIDOR } from "@/game/data/corridorLayout";
 
 /**
  * Owns the WebGL context and every renderer-wide decision: camera lens, clipping
- * planes, fog and pixel-ratio budget. Everything inside the canvas is scene content.
- *
- * This module must never be imported from a Server Component — see `GameShell`.
+ * planes, fog and pixel-ratio budget. Never import this from a Server Component.
  */
 export default function GameCanvas() {
   return (
     <Canvas
-      shadows
-      // Cap the pixel ratio: retina displays would otherwise quadruple the
-      // fragment cost for a game that leans on fog and darkness anyway.
+      // PCFSoft: hard shadow edges give away the low map resolution.
+      shadows="soft"
+      // Retina would otherwise quadruple fragment cost for a game built on darkness.
       dpr={[1, 1.5]}
       camera={{
         fov: 72,
         near: 0.05,
         far: 60,
-        // Temporary vantage: standing at one end at eye height, looking down
-        // the corridor (-Z is the camera's default forward). Step 4 replaces
-        // this with the pointer-lock controller.
+        // Temporary vantage until step 4 adds the controller. -Z is camera forward.
         position: [0, EYE_HEIGHT, GREYBOX_CORRIDOR.halfLength - 1.5],
       }}
       gl={{ powerPreference: "high-performance", antialias: true }}
-      // The canvas is the whole viewport; the DOM around it is inert.
       style={{ position: "absolute", inset: 0 }}
     >
-      {/*
-       * Exponential fog does double duty: it carries the atmosphere and it hides
-       * the far clipping plane, so the corridor can simply fade out.
-       */}
+      {/* Fog carries the atmosphere and hides the far clipping plane. */}
       <fogExp2 attach="fog" args={[FOG_COLOR, FOG_DENSITY]} />
       <color attach="background" args={[FOG_COLOR]} />
 
-      {/*
-       * Work light. Step 3 replaces this with ceiling fixtures and drops the
-       * ambient back to a level where the flashlight matters.
-       */}
-      <ambientLight intensity={0.55} />
-      <hemisphereLight args={["#8d8574", "#2a2320", 0.35]} />
-
-      <Corridor />
+      <HotelLighting layout={CORRIDOR_LAYOUT} />
+      <Corridor layout={CORRIDOR_LAYOUT} />
     </Canvas>
   );
 }

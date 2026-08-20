@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#000000",
-  // The game owns the viewport; browser zoom/scroll would fight pointer lock.
+  // The game owns the viewport; zoom and scroll would fight pointer lock.
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -31,9 +31,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      // Browser extensions inject attributes onto <html> before React hydrates.
-      // This applies one level deep only, so real mismatches inside the app
-      // still surface.
+      // Extensions inject attributes onto <html> before hydration. Applies one
+      // level deep only, so real mismatches inside the app still surface.
       suppressHydrationWarning
     >
       <body className="h-full overflow-hidden bg-black text-neutral-200">

@@ -1,19 +1,16 @@
-import { CORRIDOR_LAYOUT } from "@/game/data/corridorLayout";
+import type { FloorLayout } from "@/game/types";
 
 import { Box } from "./Box";
 
 /**
- * Draws the corridor layout.
- *
- * Every box shares one geometry and one material per surface kind, so ~50
- * meshes cost a handful of GPU resources. If floors later grow past a few
- * hundred boxes, this is the place to switch to `InstancedMesh` batched by
- * kind — the `BoxSpec[]` input would not change.
+ * Draws a floor's boxes. All share one geometry and one material per kind, so
+ * ~50 meshes cost a handful of GPU resources. Batch into InstancedMesh here if
+ * a floor ever grows past a few hundred boxes.
  */
-export function Corridor() {
+export function Corridor({ layout }: { layout: FloorLayout }) {
   return (
     <group>
-      {CORRIDOR_LAYOUT.map((spec, index) => (
+      {layout.boxes.map((spec, index) => (
         <Box key={index} spec={spec} />
       ))}
     </group>
