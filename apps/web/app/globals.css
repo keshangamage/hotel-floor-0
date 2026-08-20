@@ -3,27 +3,28 @@
 /* Scan the shared UI workspace package for Tailwind classes. */
 @source "../../../packages/ui/src";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
+  background: #000;
+  /* Pointer lock and rubber-band scrolling do not mix. */
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
+/* Nothing in the game is meant to be selected or dragged. */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+  outline: none;
 }
