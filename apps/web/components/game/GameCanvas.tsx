@@ -2,7 +2,10 @@
 
 import { Canvas } from "@react-three/fiber";
 
+import { Corridor } from "@/components/environment/Corridor";
 import { FOG_COLOR, FOG_DENSITY } from "@/game/data/atmosphere";
+import { EYE_HEIGHT } from "@/game/data/dimensions";
+import { GREYBOX_CORRIDOR } from "@/game/data/corridorLayout";
 
 /**
  * Owns the WebGL context and every renderer-wide decision: camera lens, clipping
@@ -17,7 +20,15 @@ export default function GameCanvas() {
       // Cap the pixel ratio: retina displays would otherwise quadruple the
       // fragment cost for a game that leans on fog and darkness anyway.
       dpr={[1, 1.5]}
-      camera={{ fov: 72, near: 0.05, far: 60 }}
+      camera={{
+        fov: 72,
+        near: 0.05,
+        far: 60,
+        // Temporary vantage: standing at one end at eye height, looking down
+        // the corridor (-Z is the camera's default forward). Step 4 replaces
+        // this with the pointer-lock controller.
+        position: [0, EYE_HEIGHT, GREYBOX_CORRIDOR.halfLength - 1.5],
+      }}
       gl={{ powerPreference: "high-performance", antialias: true }}
       // The canvas is the whole viewport; the DOM around it is inert.
       style={{ position: "absolute", inset: 0 }}
@@ -30,10 +41,13 @@ export default function GameCanvas() {
       <color attach="background" args={[FOG_COLOR]} />
 
       {/*
-       * Scene content arrives in step 2 (corridor) and step 3 (lighting).
-       * A single dim ambient keeps the canvas from reading as a dead black div.
+       * Work light. Step 3 replaces this with ceiling fixtures and drops the
+       * ambient back to a level where the flashlight matters.
        */}
-      <ambientLight intensity={0.12} />
+      <ambientLight intensity={0.55} />
+      <hemisphereLight args={["#8d8574", "#2a2320", 0.35]} />
+
+      <Corridor />
     </Canvas>
   );
 }
