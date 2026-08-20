@@ -1,24 +1,15 @@
 import * as THREE from "three";
 
+import { LAMP_COLOR } from "@/game/data/atmosphere";
 import type { SurfaceKind } from "@/game/types";
 
-/**
- * One unit cube, shared by every box in the hotel.
- *
- * Meshes scale it rather than each allocating their own BoxGeometry, so a
- * corridor of ~40 boxes costs exactly one geometry upload. Three.js builds a
- * correct normal matrix for non-uniform scale, so lighting stays right.
- */
+/** One unit cube shared by every box. Meshes scale it instead of allocating their own. */
 export const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 
-/**
- * Materials are created once at module scope and shared across every mesh of
- * that kind. Colours are muted and desaturated on purpose — under the dim
- * lighting of step 3 anything saturated reads as cartoonish.
- */
 const material = (color: string, roughness: number, metalness = 0) =>
   new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
+/** Muted and desaturated on purpose: saturated colour reads as cartoonish when lit dimly. */
 export const MATERIALS: Record<SurfaceKind, THREE.MeshStandardMaterial> = {
   wall: material("#5a5348", 0.92),
   floor: material("#3b2f2b", 1.0),
@@ -27,10 +18,7 @@ export const MATERIALS: Record<SurfaceKind, THREE.MeshStandardMaterial> = {
   trim: material("#4a463d", 0.85),
 };
 
-/**
- * Floors and ceilings never need to cast — nothing can be between them and a
- * ceiling lamp. Skipping them keeps the shadow pass cheap once step 3 lands.
- */
+/** Nothing can sit between a slab and a ceiling lamp, so slabs never cast. */
 export const CASTS_SHADOW: Record<SurfaceKind, boolean> = {
   wall: true,
   floor: false,
@@ -38,3 +26,13 @@ export const CASTS_SHADOW: Record<SurfaceKind, boolean> = {
   door: true,
   trim: true,
 };
+
+export const FIXTURE_MATERIAL = material("#1a1a1c", 0.55, 0.4);
+
+/** The visible source. Emissive so the fixture reads as lit, not just lit-by. */
+export const LAMP_PANEL_MATERIAL = new THREE.MeshStandardMaterial({
+  color: "#000000",
+  emissive: new THREE.Color(LAMP_COLOR),
+  emissiveIntensity: 2.5,
+  roughness: 1,
+});

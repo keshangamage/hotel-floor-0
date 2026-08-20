@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 /**
  * Client boundary for the game.
  *
- * The canvas is loaded with `ssr: false` because WebGL cannot be prerendered —
+ * The canvas is loaded with `ssr: false` because WebGL cannot be prerendered -
  * and Next.js only permits `ssr: false` inside a Client Component, so this
  * wrapper is load-bearing rather than incidental. `app/page.tsx` stays a Server
  * Component and renders this.

@@ -7,7 +7,7 @@ import type { BoxSpec, SurfaceKind, Vec3 } from "../types";
  * These are *builders*, not React components: they emit `BoxSpec[]`, which the
  * renderer draws and the collision pass consumes. Keeping them as data means
  * Milestone 4's `generateFloor(floorNumber, seed)` can compose the exact same
- * walls and slabs procedurally — something a tree of JSX components could not
+ * walls and slabs procedurally - something a tree of JSX components could not
  * do without a second, parallel code path.
  */
 
@@ -31,7 +31,7 @@ export function boxFromBounds(
   return { kind, position, size, collides };
 }
 
-/** A horizontal slab — floor or ceiling. */
+/** A horizontal slab: floor or ceiling. */
 export function slab(kind: "floor" | "ceiling", bounds: Bounds): BoxSpec {
   return boxFromBounds(kind, bounds);
 }
@@ -41,35 +41,33 @@ export interface Opening {
   readonly at: number;
   readonly width: number;
   readonly height: number;
-  /** How far the door sits back from the inner face, forming an alcove. */
+  /** How far the door sits back from the inner face. */
   readonly recess: number;
 }
 
 export interface WallOptions {
-  /** The horizontal axis the wall runs along. Thickness is the other one. */
+  /** Axis the wall runs along. Thickness is on the other horizontal axis. */
   readonly lengthAxis: "x" | "z";
-  /** Coordinate of the face the room or corridor sees. */
+  /** Face the room or corridor sees. */
   readonly innerFace: number;
-  /** Coordinate of the back face. */
+  /** Back face. */
   readonly outerFace: number;
   readonly span: readonly [number, number];
   readonly height: number;
   readonly openings?: readonly Opening[];
-  /** Skirting board along the inner face. Decorative, never collides. */
+  /** Skirting along the inner face. Never collides. */
   readonly trim?: boolean;
 }
 
 /**
  * A straight wall run, optionally interrupted by recessed doorways.
- *
- * The alcove needs no geometry of its own: each full-height segment ends flush
- * with the opening, so its end face *is* the jamb. Only the lintel above the
- * opening and the door panel at the back of the recess are added.
+ * Alcoves need no geometry: a segment ends flush with the opening, so its end
+ * face is the jamb. Only the lintel and the recessed door panel are added.
  */
 export function wallWithOpenings(options: WallOptions): BoxSpec[] {
   const { lengthAxis, innerFace, outerFace, height, openings = [], trim = false } = options;
 
-  // Which way "into the wall" points, so this works for all four orientations.
+  // Which way "into the wall" points, so all four orientations work.
   const inward = Math.sign(outerFace - innerFace) || 1;
   const thickness: readonly [number, number] =
     inward > 0 ? [innerFace, outerFace] : [outerFace, innerFace];
@@ -116,7 +114,7 @@ export function wallWithOpenings(options: WallOptions): BoxSpec[] {
     const length: readonly [number, number] = [opening.at - half, opening.at + half];
     // Lintel above the opening.
     at("wall", length, thickness, [opening.height, height], true);
-    // The door itself, at the back of the alcove.
+    // Door at the back of the alcove.
     const back = innerFace + inward * opening.recess;
     const doorDepth: readonly [number, number] =
       inward > 0 ? [back, outerFace] : [outerFace, back];

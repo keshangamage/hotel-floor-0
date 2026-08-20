@@ -9,26 +9,28 @@ import {
   SLAB_THICKNESS,
   WALL_THICKNESS,
 } from "./dimensions";
-import type { BoxSpec } from "../types";
+import type { FloorLayout, LampSpec } from "../types";
 
-/** Corridors run along Z, so X is the short axis and the walls sit at ±X. */
+/** Corridors run along Z, so X is the short axis and the walls sit at +/-X. */
 export interface CorridorSpec {
-  /** Runs from -halfLength to +halfLength along Z. */
   readonly halfLength: number;
   /** Door centres (Z) on the +X wall. */
   readonly rightDoorsAt: readonly number[];
   /** Door centres (Z) on the -X wall. */
   readonly leftDoorsAt: readonly number[];
+  /** Ceiling fixture centres (Z). */
+  readonly lampsAt: readonly number[];
+  /** Which lamps cast shadows, by index into lampsAt. */
+  readonly shadowCasters: readonly number[];
 }
 
-/**
- * Doors are staggered by half a room pitch rather than facing each other. Real
- * hotels do this, and it stops the corridor reading as a symmetric tunnel.
- */
+/** Doors are staggered by half a pitch so the corridor is not a symmetric tunnel. */
 export const GREYBOX_CORRIDOR: CorridorSpec = {
   halfLength: 10,
   leftDoorsAt: [-6, -2, 2, 6],
   rightDoorsAt: [-6, -2, 2, 6].map((z) => z + ROOM_PITCH / 2),
+  lampsAt: [-8, -4, 0, 4, 8],
+  shadowCasters: [1, 3],
 };
 
 const doorway = (at: number): Opening => ({
@@ -38,14 +40,16 @@ const doorway = (at: number): Opening => ({
   recess: DOOR_RECESS,
 });
 
-export function buildCorridor(spec: CorridorSpec): BoxSpec[] {
+/** Candela. Falls off as 1/d^2, so this is roughly 1 lux at floor level. */
+const LAMP_INTENSITY = 9;
+
+export function buildCorridor(spec: CorridorSpec): FloorLayout {
   const { halfLength } = spec;
   const outerX = CORRIDOR_HALF_WIDTH + WALL_THICKNESS;
   const length: [number, number] = [-halfLength, halfLength];
   const full: [number, number] = [-outerX, outerX];
 
-  return [
-    // Floor top sits at y = 0; the ceiling slab starts at CEILING_HEIGHT.
+  const boxes = [
     slab("floor", { x: full, y: [-SLAB_THICKNESS, 0], z: length }),
     slab("ceiling", {
       x: full,
@@ -90,7 +94,15 @@ export function buildCorridor(spec: CorridorSpec): BoxSpec[] {
       trim: true,
     }),
   ];
+
+  const lamps: LampSpec[] = spec.lampsAt.map((z, index) => ({
+    position: [0, CEILING_HEIGHT, z],
+    castShadow: spec.shadowCasters.includes(index),
+    intensity: LAMP_INTENSITY,
+  }));
+
+  return { boxes, lamps };
 }
 
-/** Built once at module load — the layout is deterministic and takes no input. */
-export const CORRIDOR_LAYOUT: readonly BoxSpec[] = buildCorridor(GREYBOX_CORRIDOR);
+/** Built once at module load. The layout is deterministic and takes no input. */
+export const CORRIDOR_LAYOUT: FloorLayout = buildCorridor(GREYBOX_CORRIDOR);
