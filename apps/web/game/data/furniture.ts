@@ -1,5 +1,5 @@
 import { boxFromBounds } from "./builders";
-import type { BoxSpec, LampSpec, SurfaceKind, SwitchSpec, Vec3 } from "../types";
+import type { BoxSpec, LampSpec, PropSpec, SurfaceKind, SwitchSpec, Vec3 } from "../types";
 
 /**
  * Furniture is authored in room-local coordinates and mirrored onto whichever
@@ -25,6 +25,7 @@ function piece(
   y: Range,
   across: Range,
   collides = true,
+  visible = true,
 ): BoxSpec {
   const a = frame.side * (frame.nearX + depth[0]);
   const b = frame.side * (frame.nearX + depth[1]);
@@ -36,7 +37,13 @@ function piece(
       z: [frame.doorZ + across[0], frame.doorZ + across[1]],
     },
     collides,
+    visible,
   );
+}
+
+/** Invisible box standing in for an imported mesh's collision. */
+function blocker(frame: RoomFrame, depth: Range, y: Range, across: Range): BoxSpec {
+  return piece(frame, "wood", depth, y, across, true, false);
 }
 
 function localPoint(frame: RoomFrame, depth: number, y: number, across: number): Vec3 {
@@ -64,30 +71,17 @@ function cabinet(frame: RoomFrame, depth: Range, y: Range, across: Range): BoxSp
   ];
 }
 
-function desk(frame: RoomFrame, depth: Range, across: Range): BoxSpec[] {
-  const top: Range = [0.72, 0.76];
-  return [
-    piece(frame, "wood", depth, top, across),
-    piece(frame, "wood", [depth[0], depth[0] + 0.05], [0, top[0]], [across[0], across[0] + 0.05]),
-    piece(frame, "wood", [depth[1] - 0.05, depth[1]], [0, top[0]], [across[0], across[0] + 0.05]),
-    piece(frame, "wood", [depth[0], depth[0] + 0.05], [0, top[0]], [across[1] - 0.05, across[1]]),
-    piece(frame, "wood", [depth[1] - 0.05, depth[1]], [0, top[0]], [across[1] - 0.05, across[1]]),
-  ];
-}
-
-function chair(frame: RoomFrame, depth: number, across: number): BoxSpec[] {
-  const d: Range = [depth - 0.22, depth + 0.22];
-  const a: Range = [across - 0.22, across + 0.22];
-  return [
-    piece(frame, "wood", d, [0.42, 0.47], a),
-    piece(frame, "wood", [d[1] - 0.05, d[1]], [0.47, 0.92], a),
-  ];
-}
+/** Measured from props.glb, so colliders match the imported meshes. */
+const PROP_SIZE = {
+  desk: [1.95, 0.832, 0.702],
+  armchair: [0.917, 1.809, 1.095],
+} as const;
 
 export interface Furnishing {
   readonly boxes: BoxSpec[];
   readonly lamps: LampSpec[];
   readonly switches: SwitchSpec[];
+  readonly props: PropSpec[];
   /** Clear floor to stand on. The furnisher knows where the gaps are. */
   readonly spawn: Vec3;
 }
@@ -106,6 +100,13 @@ export function furnishHotelRoom(
   const left = -width / 2;
   const right = width / 2;
 
+  // The desk runs along the room's depth axis, against the far side wall.
+  const deskDepth = 2.0;
+  const deskAcross = right - 0.4;
+  // Set back beside the window, clear of both the desk and the path to the door.
+  const chairDepth = 3.6;
+  const chairAcross = 1.0;
+
   const boxes: BoxSpec[] = [
     // Rug, flat on the floor and not something to trip over.
     piece(frame, "fabric", [1.1, 3.2], [0.001, 0.012], [left + 0.5, right - 0.5], false),
@@ -117,8 +118,9 @@ export function furnishHotelRoom(
     piece(frame, "metal", [back - 0.38, back - 0.22], [0.52, 0.62], [left + 1.74, left + 1.9]),
     piece(frame, "fabric", [back - 0.45, back - 0.15], [0.62, 0.82], [left + 1.67, left + 1.97]),
 
-    ...desk(frame, [1.5, 2.6], [right - 0.55, right - 0.05]),
-    ...chair(frame, 2.05, right - 0.85),
+    // Desk and chair are imported meshes; these are their colliders only.
+    blocker(frame, [deskDepth - 0.975, deskDepth + 0.975], [0, PROP_SIZE.desk[1]], [deskAcross - 0.35, deskAcross + 0.35]),
+    blocker(frame, [chairDepth - 0.46, chairDepth + 0.46], [0, PROP_SIZE.armchair[1]], [chairAcross - 0.55, chairAcross + 0.55]),
 
     ...cabinet(frame, [0.35, 0.95], [0, 2.0], [0.62, right - 0.05]),
 
@@ -132,7 +134,7 @@ export function furnishHotelRoom(
       id: lampId,
       position: localPoint(frame, back - 0.3, 0.74, left + 1.82),
       castShadow: false,
-      intensity: 3.2,
+      intensity: 5.5,
       kind: "bare",
       color: "#ffb877",
       distance: 6,
@@ -152,7 +154,22 @@ export function furnishHotelRoom(
     },
   ];
 
-  return { boxes, lamps, switches, spawn };
+  const props: PropSpec[] = [
+    {
+      instanceId: `${roomId}-desk`,
+      id: "desk",
+      position: localPoint(frame, deskDepth, 0, deskAcross),
+      yaw: 0,
+    },
+    {
+      instanceId: `${roomId}-armchair`,
+      id: "armchair",
+      position: localPoint(frame, chairDepth, 0, chairAcross),
+      yaw: frame.side === 1 ? -Math.PI / 2 : Math.PI / 2,
+    },
+  ];
+
+  return { boxes, lamps, switches, props, spawn };
 }
 
 /** Cold spill from outside, so the window reads as a light source at night. */
@@ -160,7 +177,7 @@ export function windowLight(frame: RoomFrame, depth: number, across: number, hei
   return {
     position: localPoint(frame, depth + 0.5, height, across),
     castShadow: false,
-    intensity: 2.6,
+    intensity: 3.4,
     kind: "bare",
     color: "#7d9dd6",
     distance: 7,

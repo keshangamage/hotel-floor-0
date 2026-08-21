@@ -1,6 +1,4 @@
 import { room, slab, wallWithOpenings, type Opening } from "./builders";
-import { ELEVATOR, buildElevator } from "./elevator";
-import { furnishHotelRoom, windowLight, type RoomFrame } from "./furniture";
 import {
   CEILING_HEIGHT,
   CORRIDOR_HALF_WIDTH,
@@ -10,41 +8,15 @@ import {
   SLAB_THICKNESS,
   WALL_THICKNESS,
 } from "./dimensions";
-import type { BoxSpec, DoorSpec, FloorLayout, LampSpec, SwitchSpec, Vec3 } from "../types";
+import { ELEVATOR, buildElevator } from "./elevator";
+import { furnishHotelRoom, windowLight, type RoomFrame } from "./furniture";
+import { DEFAULT_SEED, generateFloor } from "../generation/generateFloor";
+import type {
+  BoxSpec, DoorSpec, FloorLayout, FloorSpec, LampSpec, PaintingSpec, PropSpec, RoomSpec, SwitchSpec, Vec3,
+} from "../types";
 
-export interface RoomSpec {
-  /** Displayed room number, e.g. 507. */
-  readonly number: number;
-  /** +1 for the +X wall, -1 for the -X wall. */
-  readonly side: 1 | -1;
-  /** Doorway centre along the corridor. */
-  readonly doorZ: number;
-  readonly width: number;
-  readonly depth: number;
-  /** Locked doors show a prompt but will not open. */
-  readonly door: "unlocked" | "locked";
-  /** Unlit rooms stay dark until the player brings a light. */
-  readonly lit: boolean;
-  /** Furnished rooms get a bed, desk, wardrobe and a window. */
-  readonly furnished?: boolean;
-}
-
-export interface FloorSpec {
-  readonly halfLength: number;
-  readonly rooms: readonly RoomSpec[];
-  /** Corridor ceiling fixture centres, along Z. */
-  readonly lampsAt: readonly number[];
-  /** Indices into lampsAt that cast shadows. */
-  readonly shadowCasters: readonly number[];
-  /** Room number the player starts inside. */
-  readonly spawnRoom: number;
-}
-
-const CORRIDOR_LAMP_INTENSITY = 9;
-const ROOM_LAMP_INTENSITY = 7;
-
-const ROOM_WIDTH = 3.4;
-const ROOM_DEPTH = 4.5;
+const CORRIDOR_LAMP_INTENSITY = 17;
+const ROOM_LAMP_INTENSITY = 11;
 
 /** Window in the exterior wall, offset away from the bed. */
 const WINDOW_WIDTH = 1.3;
@@ -52,38 +24,20 @@ const WINDOW_SILL = 0.9;
 const WINDOW_TOP = 2.1;
 const WINDOW_ACROSS = 0.85;
 
-/**
- * Floor 5. Odd rooms on the -X wall, even on +X, as a real hotel numbers them.
- * The elevator will sit at the +Z end, so 507 is at the far end and the player
- * walks the length of the corridor to reach it.
- */
-export const FLOOR_5: FloorSpec = {
-  halfLength: 10,
-  spawnRoom: 507,
-  lampsAt: [-8, -4, 0, 4, 8],
-  shadowCasters: [1, 3],
-  rooms: [
-    { number: 501, side: -1, doorZ: 6, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
-    { number: 503, side: -1, doorZ: 2, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
-    { number: 505, side: -1, doorZ: -2, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
-    // 507 is lit by its bedside lamp and the window, not a ceiling fixture.
-    { number: 507, side: -1, doorZ: -6, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "unlocked", lit: false, furnished: true },
-    { number: 502, side: 1, doorZ: 8, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
-    { number: 504, side: 1, doorZ: 4, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
-    { number: 506, side: 1, doorZ: 0, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
-    { number: 508, side: 1, doorZ: -4, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
-  ],
-};
-
 const OUTER_X = CORRIDOR_HALF_WIDTH + WALL_THICKNESS;
 
-/** Every room doorway is a bare aperture; the door leaf is a component. */
+/** Corridor artwork, hung at eye level. */
+const PAINTING_WIDTH = 0.62;
+const PAINTING_HEIGHT = 0.78;
+const PAINTING_CENTRE_Y = 1.6;
+
 const doorway = (spec: RoomSpec): Opening => ({
   at: spec.doorZ,
   width: DOOR_WIDTH,
   height: DOOR_HEIGHT,
   recess: DOOR_RECESS,
   leaf: "open",
+  casing: true,
 });
 
 const DOOR_THICKNESS = 0.045;
@@ -91,13 +45,11 @@ const DOOR_THICKNESS = 0.045;
 function doorFor(spec: RoomSpec): DoorSpec {
   return {
     id: `room-${spec.number}`,
-    // Hinged on the low-Z jamb, at the back of the recess.
     hinge: [spec.side * (CORRIDOR_HALF_WIDTH + DOOR_RECESS), 0, spec.doorZ - DOOR_WIDTH / 2],
     width: DOOR_WIDTH,
     height: DOOR_HEIGHT,
     thickness: DOOR_THICKNESS,
     closedYaw: 0,
-    // Swings into the room, whichever side that is.
     openYaw: (spec.side * Math.PI) / 2,
     locked: spec.door === "locked",
     label: String(spec.number),
@@ -109,13 +61,32 @@ export function roomCentre(spec: RoomSpec): Vec3 {
   return [spec.side * (OUTER_X + spec.depth / 2), 0, spec.doorZ];
 }
 
-export function buildFloor(spec: FloorSpec): FloorLayout {
-  const { halfLength } = spec;
-  const length: [number, number] = [-halfLength, halfLength];
-  const full: [number, number] = [-OUTER_X, OUTER_X];
+/** Paintings on the solid stretches between doorways. */
+function corridorPaintings(spec: FloorSpec): PaintingSpec[] {
+  const out: PaintingSpec[] = [];
+  let art = 0;
+  for (const side of [1, -1] as const) {
+    const doors = spec.rooms.filter((r) => r.side === side).map((r) => r.doorZ);
+    // Every other gap, so they punctuate the corridor instead of lining it.
+    for (let i = 0; i < doors.length - 1; i += 2) {
+      const z = (doors[i]! + doors[i + 1]!) / 2;
+      out.push({
+        id: `painting-${side > 0 ? "r" : "l"}-${i}`,
+        position: [side * (CORRIDOR_HALF_WIDTH - 0.026), PAINTING_CENTRE_Y, z],
+        side,
+        width: PAINTING_WIDTH,
+        height: PAINTING_HEIGHT,
+        art: art++,
+      });
+    }
+  }
+  return out;
+}
 
-  const rightRooms = spec.rooms.filter((r) => r.side === 1);
-  const leftRooms = spec.rooms.filter((r) => r.side === -1);
+export function buildFloor(spec: FloorSpec): FloorLayout {
+  const { corridorFrom: from, corridorTo: end } = spec;
+  const length: [number, number] = [from, end];
+  const full: [number, number] = [-OUTER_X, OUTER_X];
 
   const boxes: BoxSpec[] = [
     slab("floor", { x: full, y: [-SLAB_THICKNESS, 0], z: length }),
@@ -133,7 +104,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
       outerFace: OUTER_X,
       span: length,
       height: CEILING_HEIGHT,
-      openings: rightRooms.map(doorway),
+      openings: spec.rooms.filter((r) => r.side === 1).map(doorway),
       trim: true,
     }),
     ...wallWithOpenings({
@@ -142,7 +113,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
       outerFace: -OUTER_X,
       span: length,
       height: CEILING_HEIGHT,
-      openings: leftRooms.map(doorway),
+      openings: spec.rooms.filter((r) => r.side === -1).map(doorway),
       trim: true,
     }),
 
@@ -150,26 +121,20 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     // sliding doors provide the collider that blocks it.
     ...wallWithOpenings({
       lengthAxis: "x",
-      innerFace: halfLength,
-      outerFace: halfLength + WALL_THICKNESS,
+      innerFace: end,
+      outerFace: end + WALL_THICKNESS,
       span: full,
       height: CEILING_HEIGHT,
       openings: [
-        {
-          at: 0,
-          width: ELEVATOR.doorWidth,
-          height: ELEVATOR.doorHeight,
-          recess: 0,
-          leaf: "open",
-        },
+        { at: 0, width: ELEVATOR.doorWidth, height: ELEVATOR.doorHeight, recess: 0, leaf: "open" },
       ],
       trim: true,
     }),
     ...buildElevator(),
     ...wallWithOpenings({
       lengthAxis: "x",
-      innerFace: -halfLength,
-      outerFace: -halfLength - WALL_THICKNESS,
+      innerFace: from,
+      outerFace: from - WALL_THICKNESS,
       span: full,
       height: CEILING_HEIGHT,
       trim: true,
@@ -179,6 +144,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
   const extraLamps: LampSpec[] = [];
   const spawnPoints = new Map<number, Vec3>();
   const switches: SwitchSpec[] = [];
+  const props: PropSpec[] = [];
 
   for (const spec_ of spec.rooms) {
     const frame: RoomFrame = { side: spec_.side, nearX: OUTER_X, doorZ: spec_.doorZ };
@@ -215,9 +181,9 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     boxes.push(...furnishing.boxes);
     extraLamps.push(...furnishing.lamps);
     switches.push(...furnishing.switches);
+    props.push(...furnishing.props);
     spawnPoints.set(spec_.number, furnishing.spawn);
 
-    // Glass pane sitting in the window aperture.
     const paneX = spec_.side * (OUTER_X + spec_.depth + WALL_THICKNESS / 2);
     boxes.push({
       kind: "glass",
@@ -230,16 +196,17 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     );
   }
 
-  const lamps: LampSpec[] = spec.lampsAt.map((z, index) => ({
-    position: [0, CEILING_HEIGHT, z],
-    castShadow: spec.shadowCasters.includes(index),
+  const lamps: LampSpec[] = spec.lamps.map((lamp) => ({
+    position: [0, CEILING_HEIGHT, lamp.z],
+    castShadow: lamp.castShadow && lamp.lit,
     intensity: CORRIDOR_LAMP_INTENSITY,
+    lit: lamp.lit,
   }));
 
   lamps.push(...extraLamps);
 
   for (const r of spec.rooms) {
-    if (!r.lit) continue;
+    if (!r.lit || r.furnished) continue;
     const [cx, , cz] = roomCentre(r);
     lamps.push({
       position: [cx, CEILING_HEIGHT, cz],
@@ -248,20 +215,25 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     });
   }
 
-  const start = spec.rooms.find((r) => r.number === spec.spawnRoom);
-  if (!start) throw new Error(`spawnRoom ${spec.spawnRoom} is not on this floor`);
-  // A furnished room decides its own standing spot; an empty one uses its centre.
-  const spawn = spawnPoints.get(start.number) ?? roomCentre(start);
+  // A furnished room decides its own standing spot; otherwise start in the
+  // lobby, which is where the elevator puts you.
+  const start = spec.spawnRoom === null ? undefined : spec.rooms.find((r) => r.number === spec.spawnRoom);
+  const spawn: Vec3 = start
+    ? (spawnPoints.get(start.number) ?? roomCentre(start))
+    : [0, 0, end - 1.6];
 
   return {
     boxes,
     lamps,
     doors: spec.rooms.map(doorFor),
     switches,
+    props,
+    paintings: corridorPaintings(spec),
     spawn,
-    // Face the doorway, out toward the corridor.
-    spawnYaw: start.side === 1 ? Math.PI / 2 : -Math.PI / 2,
+    spawnYaw: start ? (start.side === 1 ? Math.PI / 2 : -Math.PI / 2) : Math.PI,
   };
 }
 
+/** The hotel as it should be. Also the floor the player starts on. */
+export const FLOOR_5 = generateFloor(5, DEFAULT_SEED);
 export const FLOOR_5_LAYOUT: FloorLayout = buildFloor(FLOOR_5);

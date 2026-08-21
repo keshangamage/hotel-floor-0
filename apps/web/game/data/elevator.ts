@@ -31,7 +31,9 @@ export const CAR_CENTRE: Vec3 = [0, 0, shaftInnerZ + ELEVATOR.carDepth / 2];
 export function buildElevator(): BoxSpec[] {
   const halfW = ELEVATOR.carHalfWidth;
   const outer = halfW + WALL_THICKNESS;
-  const z: [number, number] = [shaftInnerZ, backZ + WALL_THICKNESS];
+  // Slabs start at the shaft wall's corridor face, not behind it. Starting at
+  // shaftInnerZ left a wall-thickness slot with no floor across the threshold.
+  const z: [number, number] = [ELEVATOR.frontZ, backZ + WALL_THICKNESS];
 
   return [
     slab("floor", { x: [-outer, outer], y: [-SLAB_THICKNESS, 0], z }),

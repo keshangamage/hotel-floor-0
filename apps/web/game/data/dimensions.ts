@@ -16,6 +16,9 @@ export const DOOR_RECESS = 0.12;
 /** Distance between adjacent door centres on the same side. */
 export const ROOM_PITCH = 4.0;
 
+export const ROOM_WIDTH = 3.4;
+export const ROOM_DEPTH = 4.5;
+
 /** Skirting board along the base of each wall. Decorative only. */
 export const TRIM_HEIGHT = 0.12;
 export const TRIM_DEPTH = 0.03;

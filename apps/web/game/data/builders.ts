@@ -25,10 +25,11 @@ export function boxFromBounds(
   kind: SurfaceKind,
   bounds: Bounds,
   collides = true,
+  visible = true,
 ): BoxSpec {
   const position: Vec3 = [midpoint(bounds.x), midpoint(bounds.y), midpoint(bounds.z)];
   const size: Vec3 = [span(bounds.x), span(bounds.y), span(bounds.z)];
-  return { kind, position, size, collides };
+  return { kind, position, size, collides, visible };
 }
 
 /** A horizontal slab: floor or ceiling. */
@@ -47,6 +48,8 @@ export interface Opening {
   readonly leaf?: "closed" | "open";
   /** Height of the wall below the aperture. Above 0 makes it a window. */
   readonly sill?: number;
+  /** Raised surround. Without it an opening reads as a hole in the wall. */
+  readonly casing?: boolean;
 }
 
 export interface WallOptions {
@@ -120,6 +123,19 @@ export function wallWithOpenings(options: WallOptions): BoxSpec[] {
     at("wall", length, thickness, [opening.height, height], true);
     const sill = opening.sill ?? 0;
     if (sill > 0) at("wall", length, thickness, [0, sill], true);
+
+    if (opening.casing) {
+      const face: readonly [number, number] =
+        inward > 0
+          ? [innerFace - CASING_DEPTH, innerFace]
+          : [innerFace, innerFace + CASING_DEPTH];
+      const outerA = opening.at - half - CASING_WIDTH;
+      const outerB = opening.at + half + CASING_WIDTH;
+      // Two jambs and a head, standing proud of the wall.
+      at("trim", [outerA, opening.at - half], face, [sill, opening.height + CASING_WIDTH], false);
+      at("trim", [opening.at + half, outerB], face, [sill, opening.height + CASING_WIDTH], false);
+      at("trim", [outerA, outerB], face, [opening.height, opening.height + CASING_WIDTH], false);
+    }
     if (opening.leaf === "open") continue;
     // Door at the back of the alcove.
     const back = innerFace + inward * opening.recess;
@@ -130,6 +146,10 @@ export function wallWithOpenings(options: WallOptions): BoxSpec[] {
 
   return out;
 }
+
+/** Door and window surrounds. */
+const CASING_WIDTH = 0.085;
+const CASING_DEPTH = 0.035;
 
 /** Orders a pair so callers can describe walls in either direction. */
 const ordered = (a: number, b: number): [number, number] => (a < b ? [a, b] : [b, a]);
