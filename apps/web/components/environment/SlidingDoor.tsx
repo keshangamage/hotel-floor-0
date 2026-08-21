@@ -7,16 +7,14 @@ import { setCollider } from "@/game/systems/colliders";
 
 import { MATERIALS, UNIT_BOX } from "./resources";
 
-/** Seconds for a panel to travel its full stroke. */
-const TRAVEL_TIME = 1.1;
-
 export interface SlidingDoorProps {
   /** Panel centre when fully closed. */
   closedAt: [number, number, number];
   size: [number, number, number];
   /** Direction and distance the panel slides along X when opening. */
   stroke: number;
-  open: boolean;
+  /** 0 shut, 1 fully open. Owned by the elevator state machine. */
+  progress: () => number;
 }
 
 /**
@@ -24,22 +22,14 @@ export interface SlidingDoorProps {
  * being switched off, so the opening becomes passable because the door really
  * is out of the way.
  */
-export function SlidingDoor({ closedAt, size, stroke, open }: SlidingDoorProps) {
+export function SlidingDoor({ closedAt, size, stroke, progress }: SlidingDoorProps) {
   const mesh = useRef<THREE.Mesh>(null);
   const collider = useDynamicCollider();
-  const progress = useRef(0);
 
-  useFrame((_, delta) => {
-    const target = open ? 1 : 0;
-    const step = Math.min(delta, 0.05) / TRAVEL_TIME;
-    if (progress.current < target) {
-      progress.current = Math.min(target, progress.current + step);
-    } else if (progress.current > target) {
-      progress.current = Math.max(target, progress.current - step);
-    }
-
+  useFrame(() => {
     // Ease so the panel does not start and stop abruptly.
-    const eased = progress.current * progress.current * (3 - 2 * progress.current);
+    const t = progress();
+    const eased = t * t * (3 - 2 * t);
     const x = closedAt[0] + stroke * eased;
 
     if (mesh.current) mesh.current.position.x = x;

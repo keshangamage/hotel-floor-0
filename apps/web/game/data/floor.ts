@@ -10,7 +10,7 @@ import {
   SLAB_THICKNESS,
   WALL_THICKNESS,
 } from "./dimensions";
-import type { BoxSpec, DoorSpec, FloorLayout, LampSpec, Vec3 } from "../types";
+import type { BoxSpec, DoorSpec, FloorLayout, LampSpec, SwitchSpec, Vec3 } from "../types";
 
 export interface RoomSpec {
   /** Displayed room number, e.g. 507. */
@@ -178,6 +178,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
 
   const extraLamps: LampSpec[] = [];
   const spawnPoints = new Map<number, Vec3>();
+  const switches: SwitchSpec[] = [];
 
   for (const spec_ of spec.rooms) {
     const frame: RoomFrame = { side: spec_.side, nearX: OUTER_X, doorZ: spec_.doorZ };
@@ -210,9 +211,10 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
 
     if (!spec_.furnished) continue;
 
-    const furnishing = furnishHotelRoom(frame, spec_.depth, spec_.width);
+    const furnishing = furnishHotelRoom(frame, spec_.depth, spec_.width, `room-${spec_.number}`);
     boxes.push(...furnishing.boxes);
     extraLamps.push(...furnishing.lamps);
+    switches.push(...furnishing.switches);
     spawnPoints.set(spec_.number, furnishing.spawn);
 
     // Glass pane sitting in the window aperture.
@@ -255,6 +257,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     boxes,
     lamps,
     doors: spec.rooms.map(doorFor),
+    switches,
     spawn,
     // Face the doorway, out toward the corridor.
     spawnYaw: start.side === 1 ? Math.PI / 2 : -Math.PI / 2,

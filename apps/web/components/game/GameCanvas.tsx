@@ -5,6 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { Doors } from "@/components/environment/Doors";
 import { Elevator } from "@/components/environment/Elevator";
 import { FloorGeometry } from "@/components/environment/FloorGeometry";
+import { Switches } from "@/components/environment/Switches";
 import { HotelLighting } from "@/components/lighting/HotelLighting";
 import { InputActions } from "@/components/player/InputActions";
 import { LookControls } from "@/components/player/LookControls";
@@ -44,6 +45,7 @@ export default function GameCanvas() {
               colliders are already positioned when movement resolves. */}
           <Doors layout={FLOOR_5_LAYOUT} />
           <Elevator />
+          <Switches layout={FLOOR_5_LAYOUT} />
           <InputActions />
           <Player layout={FLOOR_5_LAYOUT} />
           {/* Last, so the raycast reads the camera's final position. */}

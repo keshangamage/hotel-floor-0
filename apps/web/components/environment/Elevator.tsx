@@ -1,5 +1,5 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import {
   CAR_CENTRE,
@@ -9,33 +9,56 @@ import {
   PANEL_POSITION,
   PANEL_WIDTH,
 } from "@/game/data/elevator";
+import {
+  ELEVATOR_CONFIG,
+  callElevator,
+  closeDoors,
+  createElevator,
+  displayFloor,
+  isServed,
+  requestFloor,
+  stepElevator,
+} from "@/game/systems/elevator";
 import { useGameStore } from "@/store/useGameStore";
 
-import { FIXTURE_MATERIAL, LAMP_PANEL_MATERIAL, MATERIALS, UNIT_BOX } from "./resources";
+import { PanelButton } from "./PanelButton";
+import { LAMP_PANEL_MATERIAL, MATERIALS, UNIT_BOX } from "./resources";
 import { SevenSegment } from "./SevenSegment";
 import { SlidingDoor } from "./SlidingDoor";
 
 /** Colder than the corridor tungsten, so the car reads as a different space. */
 const CAR_LIGHT_COLOR = "#cfe0ff";
-
 const PANEL_SIZE: [number, number, number] = [PANEL_WIDTH, ELEVATOR.doorHeight, ELEVATOR.doorThickness];
+
+/** Top to bottom, as a hotel panel reads. */
+const FLOOR_BUTTONS = [5, 4, 3, 2, 1];
 
 export function Elevator() {
   const camera = useThree((state) => state.camera);
-  const floorNumber = useGameStore((state) => state.floorNumber);
-  const [open, setOpen] = useState(false);
-  const openRef = useRef(false);
+  const setFloorNumber = useGameStore((state) => state.setFloorNumber);
+  const elevator = useRef(createElevator(5));
+  const [readout, setReadout] = useState(5);
 
-  // Proximity call, until the buttons become interactive in Milestone 3.
-  useFrame(() => {
-    const dz = camera.position.z - ELEVATOR.frontZ;
-    const dx = camera.position.x;
-    const near = Math.hypot(dx, dz) < ELEVATOR.callRadius;
-    if (near !== openRef.current) {
-      openRef.current = near;
-      setOpen(near);
+  useFrame((_, delta) => {
+    const state = elevator.current;
+    stepElevator(state, Math.min(delta, 0.05), ELEVATOR_CONFIG);
+
+    const shown = displayFloor(state);
+    if (shown !== readout) {
+      setReadout(shown);
+      setFloorNumber(shown);
     }
   });
+
+  const doorProgress = useCallback(() => elevator.current.doors, []);
+  const call = useCallback(() => callElevator(elevator.current, ELEVATOR_CONFIG), []);
+
+  const press = useCallback((floor: number) => {
+    requestFloor(elevator.current, floor, ELEVATOR_CONFIG);
+  }, []);
+
+  // Reaching the panel means standing in the car, so the player is looking at it.
+  const inCar = camera.position.z > ELEVATOR.frontZ;
 
   return (
     <group>
@@ -43,29 +66,45 @@ export function Elevator() {
         closedAt={[-PANEL_WIDTH / 2, ELEVATOR.doorHeight / 2, DOOR_Z]}
         size={PANEL_SIZE}
         stroke={-PANEL_WIDTH}
-        open={open}
+        progress={doorProgress}
       />
       <SlidingDoor
         closedAt={[PANEL_WIDTH / 2, ELEVATOR.doorHeight / 2, DOOR_Z]}
         size={PANEL_SIZE}
         stroke={PANEL_WIDTH}
-        open={open}
+        progress={doorProgress}
       />
 
-      <SevenSegment value={String(floorNumber)} position={DISPLAY_POSITION} />
+      <SevenSegment value={String(readout)} position={DISPLAY_POSITION} />
 
-      {/* Button panel. Interaction lands in Milestone 3. */}
+      {/* Call plate in the lobby, beside the doors. */}
+      <group position={[0.78, 1.15, ELEVATOR.frontZ - 0.03]} rotation={[0, Math.PI, 0]}>
+        <mesh geometry={UNIT_BOX} material={MATERIALS.metal} scale={[0.11, 0.16, 0.015]} />
+        <PanelButton position={[0, 0, -0.014]} prompt="Call elevator" onPress={call} />
+      </group>
+
+      {/* Interior panel. */}
       <group position={PANEL_POSITION} rotation={[0, -Math.PI / 2, 0]}>
-        <mesh geometry={UNIT_BOX} material={MATERIALS.metal} scale={[0.16, 0.44, 0.02]} />
-        {[0, 1, 2, 3, 4, 5].map((index) => (
-          <mesh
-            key={index}
-            geometry={UNIT_BOX}
-            material={FIXTURE_MATERIAL}
-            position={[index % 2 === 0 ? -0.035 : 0.035, 0.15 - Math.floor(index / 2) * 0.1, 0.015]}
-            scale={[0.045, 0.045, 0.012]}
-          />
-        ))}
+        <mesh geometry={UNIT_BOX} material={MATERIALS.metal} scale={[0.17, 0.56, 0.02]} />
+        {FLOOR_BUTTONS.map((floor, index) => {
+          const served = isServed(floor, ELEVATOR_CONFIG);
+          return (
+            <PanelButton
+              key={floor}
+              position={[0, 0.2 - index * 0.075, 0.014]}
+              prompt={served ? `Floor ${floor}` : "Out of service"}
+              onPress={() => press(floor)}
+              lit={served && readout === floor}
+              active={served}
+            />
+          );
+        })}
+        <PanelButton
+          position={[0, -0.21, 0.014]}
+          prompt="Close doors"
+          onPress={() => closeDoors(elevator.current)}
+          color="#8fb0ff"
+        />
       </group>
 
       {/* Car ceiling light. */}
@@ -73,7 +112,7 @@ export function Elevator() {
         <mesh geometry={UNIT_BOX} material={LAMP_PANEL_MATERIAL} position={[0, -0.03, 0]} scale={[0.7, 0.02, 0.5]} />
         <pointLight
           color={CAR_LIGHT_COLOR}
-          intensity={5}
+          intensity={inCar ? 5 : 3.5}
           distance={5}
           decay={2}
           position={[0, -0.12, 0]}

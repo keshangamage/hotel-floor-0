@@ -8,11 +8,15 @@ interface GameState {
   floorNumber: number;
   /** Verb for whatever the crosshair is on, or null. */
   interactPrompt: string | null;
+  /** Lights that have been switched off. Absent means on. */
+  lightsOff: Readonly<Record<string, true>>;
   /** Timestamp of the last pause, used to time the pointer-lock cooldown. */
   pausedAt: number;
   flashlightOn: boolean;
   setPhase: (phase: GamePhase) => void;
   setInteractPrompt: (prompt: string | null) => void;
+  toggleLight: (id: string) => void;
+  setFloorNumber: (floor: number) => void;
   toggleFlashlight: () => void;
 }
 
@@ -24,10 +28,19 @@ export const useGameStore = create<GameState>((set) => ({
   phase: "menu",
   floorNumber: 5,
   interactPrompt: null,
+  lightsOff: {},
   pausedAt: 0,
   flashlightOn: false,
   setPhase: (phase) =>
     set(phase === "paused" ? { phase, pausedAt: Date.now() } : { phase }),
   setInteractPrompt: (interactPrompt) => set({ interactPrompt }),
+  setFloorNumber: (floorNumber) => set({ floorNumber }),
+  toggleLight: (id) =>
+    set((state) => {
+      const next = { ...state.lightsOff };
+      if (next[id]) delete next[id];
+      else next[id] = true;
+      return { lightsOff: next };
+    }),
   toggleFlashlight: () => set((state) => ({ flashlightOn: !state.flashlightOn })),
 }));

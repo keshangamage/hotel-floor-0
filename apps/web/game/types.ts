@@ -40,6 +40,8 @@ export interface AABB {
 
 /** A ceiling fixture. Shadow casters are opt-in because they are the main cost. */
 export interface LampSpec {
+  /** Set when the lamp can be switched or disturbed by an anomaly. */
+  readonly id?: string;
   readonly position: Vec3;
   readonly castShadow: boolean;
   readonly intensity: number;
@@ -64,11 +66,20 @@ export interface DoorSpec {
   readonly label?: string;
 }
 
+/** A wall switch controlling one lamp. */
+export interface SwitchSpec {
+  readonly id: string;
+  readonly position: Vec3;
+  readonly yaw: number;
+  readonly targetLampId: string;
+}
+
 /** Everything needed to build one floor. Milestone 4 generates this shape. */
 export interface FloorLayout {
   readonly boxes: readonly BoxSpec[];
   readonly lamps: readonly LampSpec[];
   readonly doors: readonly DoorSpec[];
+  readonly switches: readonly SwitchSpec[];
   /** Where the player's feet start. */
   readonly spawn: Vec3;
   /** Initial camera yaw, in radians. */

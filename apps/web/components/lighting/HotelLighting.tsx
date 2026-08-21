@@ -3,6 +3,7 @@ import {
   HEMISPHERE_INTENSITY,
 } from "@/game/data/atmosphere";
 import type { FloorLayout } from "@/game/types";
+import { useGameStore } from "@/store/useGameStore";
 
 import { CeilingLamp } from "./CeilingLamp";
 
@@ -11,12 +12,13 @@ import { CeilingLamp } from "./CeilingLamp";
  * fixtures do the work and the flashlight still matters later.
  */
 export function HotelLighting({ layout }: { layout: FloorLayout }) {
+  const lightsOff = useGameStore((state) => state.lightsOff);
   return (
     <>
       <ambientLight intensity={AMBIENT_INTENSITY} />
       <hemisphereLight args={["#4a4238", "#14100e", HEMISPHERE_INTENSITY]} />
       {layout.lamps.map((spec, index) =>
-        spec.kind === "bare" ? (
+        spec.id && lightsOff[spec.id] ? null : spec.kind === "bare" ? (
           <pointLight
             key={index}
             position={spec.position}

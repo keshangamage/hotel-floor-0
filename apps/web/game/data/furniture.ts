@@ -1,5 +1,5 @@
 import { boxFromBounds } from "./builders";
-import type { BoxSpec, LampSpec, SurfaceKind, Vec3 } from "../types";
+import type { BoxSpec, LampSpec, SurfaceKind, SwitchSpec, Vec3 } from "../types";
 
 /**
  * Furniture is authored in room-local coordinates and mirrored onto whichever
@@ -87,6 +87,7 @@ function chair(frame: RoomFrame, depth: number, across: number): BoxSpec[] {
 export interface Furnishing {
   readonly boxes: BoxSpec[];
   readonly lamps: LampSpec[];
+  readonly switches: SwitchSpec[];
   /** Clear floor to stand on. The furnisher knows where the gaps are. */
   readonly spawn: Vec3;
 }
@@ -95,7 +96,12 @@ export interface Furnishing {
  * A standard hotel room. Room 507 uses this, and every other room can once
  * their doors open.
  */
-export function furnishHotelRoom(frame: RoomFrame, depth: number, width: number): Furnishing {
+export function furnishHotelRoom(
+  frame: RoomFrame,
+  depth: number,
+  width: number,
+  roomId: string,
+): Furnishing {
   const back = depth - 0.05;
   const left = -width / 2;
   const right = width / 2;
@@ -120,8 +126,10 @@ export function furnishHotelRoom(frame: RoomFrame, depth: number, width: number)
     piece(frame, "wood", [0.02, 0.05], [1.25, 1.85], [right - 2.6, right - 1.8], false),
   ];
 
+  const lampId = `${roomId}-bedside`;
   const lamps: LampSpec[] = [
     {
+      id: lampId,
       position: localPoint(frame, back - 0.3, 0.74, left + 1.82),
       castShadow: false,
       intensity: 3.2,
@@ -134,7 +142,17 @@ export function furnishHotelRoom(frame: RoomFrame, depth: number, width: number)
   // In line with the doorway, clear of the wardrobe, desk and bed.
   const spawn = localPoint(frame, 1.3, 0, 0);
 
-  return { boxes, lamps, spawn };
+  // Switch on the wall just inside the door, where you would reach for it.
+  const switches: SwitchSpec[] = [
+    {
+      id: `${roomId}-switch`,
+      position: localPoint(frame, 0.18, 1.15, -0.62),
+      yaw: frame.side === 1 ? 0 : Math.PI,
+      targetLampId: lampId,
+    },
+  ];
+
+  return { boxes, lamps, switches, spawn };
 }
 
 /** Cold spill from outside, so the window reads as a light source at night. */
