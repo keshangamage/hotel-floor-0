@@ -30,3 +30,5 @@ export const PLAYER_RADIUS = 0.3;
 export const PLAYER_HEIGHT = 1.75;
 export const EYE_HEIGHT = 1.62;
 export const CROUCH_EYE_HEIGHT = 1.05;
+/** Collision height while crouched. Lower than standing so low gaps are passable. */
+export const CROUCH_HEIGHT = 1.2;

@@ -12,6 +12,23 @@ export interface BoxSpec {
   readonly collides: boolean;
 }
 
+/** Mutable point, reused in place so the movement loop allocates nothing. */
+export interface Point3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** Axis-aligned bounding box in world space. */
+export interface AABB {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  minZ: number;
+  maxZ: number;
+}
+
 /** A ceiling fixture. Shadow casters are opt-in because they are the main cost. */
 export interface LampSpec {
   readonly position: Vec3;
@@ -23,4 +40,6 @@ export interface LampSpec {
 export interface FloorLayout {
   readonly boxes: readonly BoxSpec[];
   readonly lamps: readonly LampSpec[];
+  /** Where the player's feet start. */
+  readonly spawn: Vec3;
 }

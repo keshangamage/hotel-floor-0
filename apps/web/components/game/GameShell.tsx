@@ -1,14 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useEffect } from "react";
+
+import { Crosshair } from "@/components/ui/Crosshair";
+import { Overlay } from "@/components/ui/Overlay";
+import { input } from "@/game/systems/input";
 
 /**
- * Client boundary for the game.
- *
- * The canvas is loaded with `ssr: false` because WebGL cannot be prerendered -
- * and Next.js only permits `ssr: false` inside a Client Component, so this
- * wrapper is load-bearing rather than incidental. `app/page.tsx` stays a Server
- * Component and renders this.
+ * Client boundary for the game. WebGL cannot be prerendered, and Next only
+ * allows ssr:false inside a Client Component, so this wrapper is required.
  */
 const GameCanvas = dynamic(() => import("./GameCanvas"), {
   ssr: false,
@@ -26,8 +27,14 @@ function ShellFallback() {
 }
 
 export function GameShell() {
+  // The keyboard is global, so it attaches once here rather than per component.
+  useEffect(() => input.attach(window), []);
+
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-black">
+      {/* Rendered before the canvas so the lock target exists when drei looks. */}
+      <Overlay />
+      <Crosshair />
       <GameCanvas />
     </main>
   );

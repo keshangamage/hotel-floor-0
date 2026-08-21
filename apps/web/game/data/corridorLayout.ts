@@ -9,7 +9,7 @@ import {
   SLAB_THICKNESS,
   WALL_THICKNESS,
 } from "./dimensions";
-import type { FloorLayout, LampSpec } from "../types";
+import type { FloorLayout, LampSpec, Vec3 } from "../types";
 
 /** Corridors run along Z, so X is the short axis and the walls sit at +/-X. */
 export interface CorridorSpec {
@@ -101,7 +101,10 @@ export function buildCorridor(spec: CorridorSpec): FloorLayout {
     intensity: LAMP_INTENSITY,
   }));
 
-  return { boxes, lamps };
+  // Standing at one end, facing down the corridor.
+  const spawn: Vec3 = [0, 0, halfLength - 1.5];
+
+  return { boxes, lamps, spawn };
 }
 
 /** Built once at module load. The layout is deterministic and takes no input. */
