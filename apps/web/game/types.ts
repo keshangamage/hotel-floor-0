@@ -1,7 +1,7 @@
 /** Mutable tuple so these drop into R3F position/scale props. */
 export type Vec3 = [number, number, number];
 
-export type SurfaceKind = "wall" | "floor" | "ceiling" | "door" | "trim";
+export type SurfaceKind = "wall" | "floor" | "ceiling" | "door" | "trim" | "metal";
 
 /** One axis-aligned box. The renderer draws these and collision reads the same array. */
 export interface BoxSpec {
@@ -42,4 +42,6 @@ export interface FloorLayout {
   readonly lamps: readonly LampSpec[];
   /** Where the player's feet start. */
   readonly spawn: Vec3;
+  /** Initial camera yaw, in radians. */
+  readonly spawnYaw: number;
 }

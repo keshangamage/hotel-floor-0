@@ -4,6 +4,8 @@ export type GamePhase = "menu" | "playing" | "paused";
 
 interface GameState {
   phase: GamePhase;
+  /** Shown on the elevator display. */
+  floorNumber: number;
   /** Timestamp of the last pause, used to time the pointer-lock cooldown. */
   pausedAt: number;
   flashlightOn: boolean;
@@ -17,6 +19,7 @@ interface GameState {
  */
 export const useGameStore = create<GameState>((set) => ({
   phase: "menu",
+  floorNumber: 5,
   pausedAt: 0,
   flashlightOn: false,
   setPhase: (phase) =>

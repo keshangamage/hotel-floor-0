@@ -2,14 +2,16 @@
 
 import { Canvas } from "@react-three/fiber";
 
-import { Corridor } from "@/components/environment/Corridor";
+import { Elevator } from "@/components/environment/Elevator";
+import { FloorGeometry } from "@/components/environment/FloorGeometry";
 import { HotelLighting } from "@/components/lighting/HotelLighting";
 import { InputActions } from "@/components/player/InputActions";
 import { LookControls } from "@/components/player/LookControls";
 import { Player } from "@/components/player/Player";
 import { FOG_COLOR, FOG_DENSITY } from "@/game/data/atmosphere";
-import { CORRIDOR_LAYOUT, GREYBOX_CORRIDOR } from "@/game/data/corridorLayout";
-import { EYE_HEIGHT } from "@/game/data/dimensions";
+import { FLOOR_5_LAYOUT } from "@/game/data/floor";
+
+import { ColliderProvider } from "./Colliders";
 
 /**
  * Owns the WebGL context and every renderer-wide decision: camera lens, clipping
@@ -22,13 +24,8 @@ export default function GameCanvas() {
       shadows="soft"
       // Retina would otherwise quadruple fragment cost for a game built on darkness.
       dpr={[1, 1.5]}
-      camera={{
-        fov: 72,
-        near: 0.05,
-        far: 60,
-        // Temporary vantage until step 4 adds the controller. -Z is camera forward.
-        position: [0, EYE_HEIGHT, GREYBOX_CORRIDOR.halfLength - 1.5],
-      }}
+      // The player controller owns position and yaw from the first frame.
+      camera={{ fov: 72, near: 0.05, far: 60 }}
       gl={{ powerPreference: "high-performance", antialias: true }}
       style={{ position: "absolute", inset: 0 }}
     >
@@ -36,12 +33,16 @@ export default function GameCanvas() {
       <fogExp2 attach="fog" args={[FOG_COLOR, FOG_DENSITY]} />
       <color attach="background" args={[FOG_COLOR]} />
 
-      <LookControls />
-      <InputActions />
-      <Player layout={CORRIDOR_LAYOUT} />
-
-      <HotelLighting layout={CORRIDOR_LAYOUT} />
-      <Corridor layout={CORRIDOR_LAYOUT} />
+      <ColliderProvider boxes={FLOOR_5_LAYOUT.boxes}>
+        <LookControls />
+        <HotelLighting layout={FLOOR_5_LAYOUT} />
+        <FloorGeometry layout={FLOOR_5_LAYOUT} />
+        {/* Doors register their frame callback before the player, so colliders
+            are already positioned when movement resolves. */}
+        <Elevator />
+        <InputActions />
+        <Player layout={FLOOR_5_LAYOUT} />
+      </ColliderProvider>
     </Canvas>
   );
 }
