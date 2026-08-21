@@ -4,6 +4,9 @@ import { Canvas } from "@react-three/fiber";
 
 import { Corridor } from "@/components/environment/Corridor";
 import { HotelLighting } from "@/components/lighting/HotelLighting";
+import { InputActions } from "@/components/player/InputActions";
+import { LookControls } from "@/components/player/LookControls";
+import { Player } from "@/components/player/Player";
 import { FOG_COLOR, FOG_DENSITY } from "@/game/data/atmosphere";
 import { CORRIDOR_LAYOUT, GREYBOX_CORRIDOR } from "@/game/data/corridorLayout";
 import { EYE_HEIGHT } from "@/game/data/dimensions";
@@ -32,6 +35,10 @@ export default function GameCanvas() {
       {/* Fog carries the atmosphere and hides the far clipping plane. */}
       <fogExp2 attach="fog" args={[FOG_COLOR, FOG_DENSITY]} />
       <color attach="background" args={[FOG_COLOR]} />
+
+      <LookControls />
+      <InputActions />
+      <Player layout={CORRIDOR_LAYOUT} />
 
       <HotelLighting layout={CORRIDOR_LAYOUT} />
       <Corridor layout={CORRIDOR_LAYOUT} />

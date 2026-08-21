@@ -43,3 +43,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+
+Old Horror Mansion Hall GLB.glb
+# source 3D assets: large originals stay local, optimized props are committed
+# under apps/web/public/models/
+/*.glb
+/*.gltf
+/*.fbx
