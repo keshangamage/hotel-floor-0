@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect } from "react";
 
 import { Crosshair } from "@/components/ui/Crosshair";
+import { InteractPrompt } from "@/components/ui/InteractPrompt";
 import { Overlay } from "@/components/ui/Overlay";
 import { input } from "@/game/systems/input";
 
@@ -35,6 +36,7 @@ export function GameShell() {
       {/* Rendered before the canvas so the lock target exists when drei looks. */}
       <Overlay />
       <Crosshair />
+      <InteractPrompt />
       <GameCanvas />
     </main>
   );

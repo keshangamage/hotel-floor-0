@@ -10,7 +10,7 @@ import {
   SLAB_THICKNESS,
   WALL_THICKNESS,
 } from "./dimensions";
-import type { BoxSpec, FloorLayout, LampSpec, Vec3 } from "../types";
+import type { BoxSpec, DoorSpec, FloorLayout, LampSpec, Vec3 } from "../types";
 
 export interface RoomSpec {
   /** Displayed room number, e.g. 507. */
@@ -21,8 +21,8 @@ export interface RoomSpec {
   readonly doorZ: number;
   readonly width: number;
   readonly depth: number;
-  /** Open doorways are walkable. Closed ones get a door panel. */
-  readonly door: "closed" | "open";
+  /** Locked doors show a prompt but will not open. */
+  readonly door: "unlocked" | "locked";
   /** Unlit rooms stay dark until the player brings a light. */
   readonly lit: boolean;
   /** Furnished rooms get a bed, desk, wardrobe and a window. */
@@ -63,27 +63,46 @@ export const FLOOR_5: FloorSpec = {
   lampsAt: [-8, -4, 0, 4, 8],
   shadowCasters: [1, 3],
   rooms: [
-    { number: 501, side: -1, doorZ: 6, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "closed", lit: false },
-    { number: 503, side: -1, doorZ: 2, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "closed", lit: false },
-    { number: 505, side: -1, doorZ: -2, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "closed", lit: false },
+    { number: 501, side: -1, doorZ: 6, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
+    { number: 503, side: -1, doorZ: 2, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
+    { number: 505, side: -1, doorZ: -2, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
     // 507 is lit by its bedside lamp and the window, not a ceiling fixture.
-    { number: 507, side: -1, doorZ: -6, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "open", lit: false, furnished: true },
-    { number: 502, side: 1, doorZ: 8, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "closed", lit: false },
-    { number: 504, side: 1, doorZ: 4, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "closed", lit: false },
-    { number: 506, side: 1, doorZ: 0, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "closed", lit: false },
-    { number: 508, side: 1, doorZ: -4, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "closed", lit: false },
+    { number: 507, side: -1, doorZ: -6, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "unlocked", lit: false, furnished: true },
+    { number: 502, side: 1, doorZ: 8, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
+    { number: 504, side: 1, doorZ: 4, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
+    { number: 506, side: 1, doorZ: 0, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
+    { number: 508, side: 1, doorZ: -4, width: ROOM_WIDTH, depth: ROOM_DEPTH, door: "locked", lit: false },
   ],
 };
 
 const OUTER_X = CORRIDOR_HALF_WIDTH + WALL_THICKNESS;
 
+/** Every room doorway is a bare aperture; the door leaf is a component. */
 const doorway = (spec: RoomSpec): Opening => ({
   at: spec.doorZ,
   width: DOOR_WIDTH,
   height: DOOR_HEIGHT,
   recess: DOOR_RECESS,
-  leaf: spec.door,
+  leaf: "open",
 });
+
+const DOOR_THICKNESS = 0.045;
+
+function doorFor(spec: RoomSpec): DoorSpec {
+  return {
+    id: `room-${spec.number}`,
+    // Hinged on the low-Z jamb, at the back of the recess.
+    hinge: [spec.side * (CORRIDOR_HALF_WIDTH + DOOR_RECESS), 0, spec.doorZ - DOOR_WIDTH / 2],
+    width: DOOR_WIDTH,
+    height: DOOR_HEIGHT,
+    thickness: DOOR_THICKNESS,
+    closedYaw: 0,
+    // Swings into the room, whichever side that is.
+    openYaw: (spec.side * Math.PI) / 2,
+    locked: spec.door === "locked",
+    label: String(spec.number),
+  };
+}
 
 /** Centre of a room's interior. */
 export function roomCentre(spec: RoomSpec): Vec3 {
@@ -235,6 +254,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
   return {
     boxes,
     lamps,
+    doors: spec.rooms.map(doorFor),
     spawn,
     // Face the doorway, out toward the corridor.
     spawnYaw: start.side === 1 ? Math.PI / 2 : -Math.PI / 2,

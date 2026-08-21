@@ -49,10 +49,26 @@ export interface LampSpec {
   readonly distance?: number;
 }
 
+/** A hinged door. Rendered as a component because it moves. */
+export interface DoorSpec {
+  readonly id: string;
+  /** The jamb it pivots on. */
+  readonly hinge: Vec3;
+  readonly width: number;
+  readonly height: number;
+  readonly thickness: number;
+  readonly closedYaw: number;
+  readonly openYaw: number;
+  readonly locked: boolean;
+  /** Room number, for prompts and signage. */
+  readonly label?: string;
+}
+
 /** Everything needed to build one floor. Milestone 4 generates this shape. */
 export interface FloorLayout {
   readonly boxes: readonly BoxSpec[];
   readonly lamps: readonly LampSpec[];
+  readonly doors: readonly DoorSpec[];
   /** Where the player's feet start. */
   readonly spawn: Vec3;
   /** Initial camera yaw, in radians. */

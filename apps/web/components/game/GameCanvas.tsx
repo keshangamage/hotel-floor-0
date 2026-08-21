@@ -2,6 +2,7 @@
 
 import { Canvas } from "@react-three/fiber";
 
+import { Doors } from "@/components/environment/Doors";
 import { Elevator } from "@/components/environment/Elevator";
 import { FloorGeometry } from "@/components/environment/FloorGeometry";
 import { HotelLighting } from "@/components/lighting/HotelLighting";
@@ -12,6 +13,7 @@ import { FOG_COLOR, FOG_DENSITY } from "@/game/data/atmosphere";
 import { FLOOR_5_LAYOUT } from "@/game/data/floor";
 
 import { ColliderProvider } from "./Colliders";
+import { InteractionDriver, InteractionProvider } from "./Interactions";
 
 /**
  * Owns the WebGL context and every renderer-wide decision: camera lens, clipping
@@ -34,14 +36,19 @@ export default function GameCanvas() {
       <color attach="background" args={[FOG_COLOR]} />
 
       <ColliderProvider boxes={FLOOR_5_LAYOUT.boxes}>
-        <LookControls />
-        <HotelLighting layout={FLOOR_5_LAYOUT} />
-        <FloorGeometry layout={FLOOR_5_LAYOUT} />
-        {/* Doors register their frame callback before the player, so colliders
-            are already positioned when movement resolves. */}
-        <Elevator />
-        <InputActions />
-        <Player layout={FLOOR_5_LAYOUT} />
+        <InteractionProvider>
+          <LookControls />
+          <HotelLighting layout={FLOOR_5_LAYOUT} />
+          <FloorGeometry layout={FLOOR_5_LAYOUT} />
+          {/* Doors register their frame callback before the player, so
+              colliders are already positioned when movement resolves. */}
+          <Doors layout={FLOOR_5_LAYOUT} />
+          <Elevator />
+          <InputActions />
+          <Player layout={FLOOR_5_LAYOUT} />
+          {/* Last, so the raycast reads the camera's final position. */}
+          <InteractionDriver />
+        </InteractionProvider>
       </ColliderProvider>
     </Canvas>
   );
