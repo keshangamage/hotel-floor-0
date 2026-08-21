@@ -1,7 +1,16 @@
 /** Mutable tuple so these drop into R3F position/scale props. */
 export type Vec3 = [number, number, number];
 
-export type SurfaceKind = "wall" | "floor" | "ceiling" | "door" | "trim" | "metal";
+export type SurfaceKind =
+  | "wall"
+  | "floor"
+  | "ceiling"
+  | "door"
+  | "trim"
+  | "metal"
+  | "wood"
+  | "fabric"
+  | "glass";
 
 /** One axis-aligned box. The renderer draws these and collision reads the same array. */
 export interface BoxSpec {
@@ -34,6 +43,10 @@ export interface LampSpec {
   readonly position: Vec3;
   readonly castShadow: boolean;
   readonly intensity: number;
+  /** "ceiling" is a recessed downlight, "bare" an omnidirectional bulb. */
+  readonly kind?: "ceiling" | "bare";
+  readonly color?: string;
+  readonly distance?: number;
 }
 
 /** Everything needed to build one floor. Milestone 4 generates this shape. */

@@ -17,6 +17,15 @@ export const MATERIALS: Record<SurfaceKind, THREE.MeshStandardMaterial> = {
   door: material("#4a3b30", 0.72),
   trim: material("#4a463d", 0.85),
   metal: material("#3a3d42", 0.34, 0.75),
+  wood: material("#43342a", 0.68),
+  fabric: material("#6d6455", 0.95),
+  glass: new THREE.MeshStandardMaterial({
+    color: "#0a0f18",
+    roughness: 0.12,
+    metalness: 0.1,
+    transparent: true,
+    opacity: 0.35,
+  }),
 };
 
 /** Nothing can sit between a slab and a ceiling lamp, so slabs never cast. */
@@ -27,6 +36,9 @@ export const CASTS_SHADOW: Record<SurfaceKind, boolean> = {
   door: true,
   trim: true,
   metal: true,
+  wood: true,
+  fabric: true,
+  glass: false,
 };
 
 export const FIXTURE_MATERIAL = material("#1a1a1c", 0.55, 0.4);

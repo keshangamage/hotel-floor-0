@@ -15,9 +15,20 @@ export function HotelLighting({ layout }: { layout: FloorLayout }) {
     <>
       <ambientLight intensity={AMBIENT_INTENSITY} />
       <hemisphereLight args={["#4a4238", "#14100e", HEMISPHERE_INTENSITY]} />
-      {layout.lamps.map((spec, index) => (
-        <CeilingLamp key={index} spec={spec} />
-      ))}
+      {layout.lamps.map((spec, index) =>
+        spec.kind === "bare" ? (
+          <pointLight
+            key={index}
+            position={spec.position}
+            color={spec.color}
+            intensity={spec.intensity}
+            distance={spec.distance ?? 6}
+            decay={2}
+          />
+        ) : (
+          <CeilingLamp key={index} spec={spec} />
+        ),
+      )}
     </>
   );
 }

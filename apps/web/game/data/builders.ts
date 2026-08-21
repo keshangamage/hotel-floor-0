@@ -45,6 +45,8 @@ export interface Opening {
   readonly recess: number;
   /** "open" leaves the aperture clear so the player can walk through. */
   readonly leaf?: "closed" | "open";
+  /** Height of the wall below the aperture. Above 0 makes it a window. */
+  readonly sill?: number;
 }
 
 export interface WallOptions {
@@ -116,12 +118,14 @@ export function wallWithOpenings(options: WallOptions): BoxSpec[] {
     const length: readonly [number, number] = [opening.at - half, opening.at + half];
     // Lintel above the opening.
     at("wall", length, thickness, [opening.height, height], true);
+    const sill = opening.sill ?? 0;
+    if (sill > 0) at("wall", length, thickness, [0, sill], true);
     if (opening.leaf === "open") continue;
     // Door at the back of the alcove.
     const back = innerFace + inward * opening.recess;
     const doorDepth: readonly [number, number] =
       inward > 0 ? [back, outerFace] : [outerFace, back];
-    at("door", length, doorDepth, [0, opening.height], true);
+    at("door", length, doorDepth, [sill, opening.height], true);
   }
 
   return out;
@@ -142,6 +146,8 @@ export interface RoomOptions {
   readonly height: number;
   readonly wallThickness: number;
   readonly slabThickness: number;
+  /** Openings in the exterior wall, e.g. windows. */
+  readonly backOpenings?: readonly Opening[];
 }
 
 /**
@@ -167,13 +173,14 @@ export function room(options: RoomOptions): BoxSpec[] {
       y: [height, height + options.slabThickness],
       z: shellZ,
     }),
-    // Back wall, parallel to the corridor.
+    // Back wall, parallel to the corridor. This is the building exterior.
     ...wallWithOpenings({
       lengthAxis: "z",
       innerFace: farX,
       outerFace: backX,
       span: shellZ,
       height,
+      openings: options.backOpenings,
       trim: true,
     }),
     // The two dividing walls between neighbouring rooms.
