@@ -31,22 +31,28 @@ const CAR_LIGHT_COLOR = "#cfe0ff";
 const PANEL_SIZE: [number, number, number] = [PANEL_WIDTH, ELEVATOR.doorHeight, ELEVATOR.doorThickness];
 
 /** Top to bottom, as a hotel panel reads. */
-const FLOOR_BUTTONS = [5, 4, 3, 2, 1];
+const FLOOR_BUTTONS = [5, 4, 3, 2, 1, 0];
 
 export function Elevator() {
   const camera = useThree((state) => state.camera);
   const setFloorNumber = useGameStore((state) => state.setFloorNumber);
-  const elevator = useRef(createElevator(5));
-  const [readout, setReadout] = useState(5);
+  const startFloor = useGameStore.getState().floorNumber;
+  const elevator = useRef(createElevator(startFloor));
+  const [readout, setReadout] = useState(startFloor);
+  const arrivedAt = useRef(startFloor);
 
   useFrame((_, delta) => {
     const state = elevator.current;
     stepElevator(state, Math.min(delta, 0.05), ELEVATOR_CONFIG);
 
     const shown = displayFloor(state);
-    if (shown !== readout) {
-      setReadout(shown);
-      setFloorNumber(shown);
+    if (shown !== readout) setReadout(shown);
+
+    // The floor only changes on arrival. Driving it from the readout would
+    // rebuild the whole level on every tick of the journey.
+    if (state.floor !== arrivedAt.current) {
+      arrivedAt.current = state.floor;
+      setFloorNumber(state.floor);
     }
   });
 
@@ -75,7 +81,10 @@ export function Elevator() {
         progress={doorProgress}
       />
 
-      <SevenSegment value={String(readout)} position={DISPLAY_POSITION} />
+      {/* Turned to face the corridor. Seen from behind, a 5 reads as a 2. */}
+      <group position={DISPLAY_POSITION} rotation={[0, Math.PI, 0]}>
+        <SevenSegment value={String(readout)} />
+      </group>
 
       {/* Call plate in the lobby, beside the doors. */}
       <group position={[0.78, 1.15, ELEVATOR.frontZ - 0.03]} rotation={[0, Math.PI, 0]}>
@@ -91,7 +100,7 @@ export function Elevator() {
           return (
             <PanelButton
               key={floor}
-              position={[0, 0.2 - index * 0.075, 0.014]}
+              position={[0, 0.22 - index * 0.072, 0.014]}
               prompt={served ? `Floor ${floor}` : "Out of service"}
               onPress={() => press(floor)}
               lit={served && readout === floor}

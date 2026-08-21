@@ -10,9 +10,9 @@ import { Box } from "./Box";
 export function FloorGeometry({ layout }: { layout: FloorLayout }) {
   return (
     <group>
-      {layout.boxes.map((spec, index) => (
-        <Box key={index} spec={spec} />
-      ))}
+      {layout.boxes.map((spec, index) =>
+        spec.visible === false ? null : <Box key={index} spec={spec} />,
+      )}
     </group>
   );
 }

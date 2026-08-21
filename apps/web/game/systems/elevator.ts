@@ -15,8 +15,8 @@ export const ELEVATOR_CONFIG: ElevatorConfig = {
   openTime: 1.1,
   holdTime: 5,
   travelPerFloor: 2.4,
-  // Only Floor 5 is built. Floor 0 joins this list when it exists.
-  servedFloors: [5],
+  // Floor 0 should not be reachable, which is rather the point.
+  servedFloors: [5, 0],
 };
 
 export interface ElevatorState {

@@ -1,11 +1,15 @@
 import { create } from "zustand";
 
+import { DEFAULT_SEED } from "@/game/generation/generateFloor";
+
 export type GamePhase = "menu" | "playing" | "paused";
 
 interface GameState {
   phase: GamePhase;
-  /** Shown on the elevator display. */
+  /** The floor the player is actually on. Changes only on arrival. */
   floorNumber: number;
+  /** Drives procedural generation; the same seed rebuilds the same hotel. */
+  seed: string;
   /** Verb for whatever the crosshair is on, or null. */
   interactPrompt: string | null;
   /** Lights that have been switched off. Absent means on. */
@@ -27,6 +31,7 @@ interface GameState {
 export const useGameStore = create<GameState>((set) => ({
   phase: "menu",
   floorNumber: 5,
+  seed: DEFAULT_SEED,
   interactPrompt: null,
   lightsOff: {},
   pausedAt: 0,

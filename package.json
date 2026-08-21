@@ -14,6 +14,11 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.4.2",
+    "@gltf-transform/extensions": "^4.4.2",
+    "@gltf-transform/functions": "^4.4.2",
+    "meshoptimizer": "^1.2.0",
+    "sharp": "^0.35.3",
     "turbo": "^2.5.8",
     "typescript": "^5"
   },

@@ -1,15 +1,14 @@
 import type { BoxSpec } from "@/game/types";
 
-import { CASTS_SHADOW, MATERIALS, UNIT_BOX } from "./resources";
+import { CASTS_SHADOW, MATERIALS, geometryFor } from "./resources";
 
-/** Renders one BoxSpec as a scaled instance of the shared unit cube. */
+/** Renders one BoxSpec with geometry sized so its textures tile correctly. */
 export function Box({ spec }: { spec: BoxSpec }) {
   return (
     <mesh
-      geometry={UNIT_BOX}
+      geometry={geometryFor(spec.size)}
       material={MATERIALS[spec.kind]}
       position={spec.position}
-      scale={spec.size}
       castShadow={CASTS_SHADOW[spec.kind]}
       receiveShadow
     />

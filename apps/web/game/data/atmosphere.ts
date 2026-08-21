@@ -2,11 +2,11 @@
 export const FOG_COLOR = "#07070a";
 
 /** Tuned so the corridor fades well inside the camera's 60m far plane. */
-export const FOG_DENSITY = 0.085;
+export const FOG_DENSITY = 0.055;
 
 /** Warm tungsten, dimmed. Anything more saturated reads as cartoonish when lit. */
 export const LAMP_COLOR = "#ffcf9e";
 
 /** Just enough fill that shadowed areas are not pure black. */
-export const AMBIENT_INTENSITY = 0.05;
-export const HEMISPHERE_INTENSITY = 0.12;
+export const AMBIENT_INTENSITY = 0.1;
+export const HEMISPHERE_INTENSITY = 0.22;
