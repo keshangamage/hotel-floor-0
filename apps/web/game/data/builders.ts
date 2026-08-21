@@ -43,6 +43,8 @@ export interface Opening {
   readonly height: number;
   /** How far the door sits back from the inner face. */
   readonly recess: number;
+  /** "open" leaves the aperture clear so the player can walk through. */
+  readonly leaf?: "closed" | "open";
 }
 
 export interface WallOptions {
@@ -114,6 +116,7 @@ export function wallWithOpenings(options: WallOptions): BoxSpec[] {
     const length: readonly [number, number] = [opening.at - half, opening.at + half];
     // Lintel above the opening.
     at("wall", length, thickness, [opening.height, height], true);
+    if (opening.leaf === "open") continue;
     // Door at the back of the alcove.
     const back = innerFace + inward * opening.recess;
     const doorDepth: readonly [number, number] =
@@ -122,4 +125,73 @@ export function wallWithOpenings(options: WallOptions): BoxSpec[] {
   }
 
   return out;
+}
+
+/** Orders a pair so callers can describe walls in either direction. */
+const ordered = (a: number, b: number): [number, number] => (a < b ? [a, b] : [b, a]);
+
+export interface RoomOptions {
+  /** +1 for a room off the +X wall, -1 for the -X wall. */
+  readonly side: 1 | -1;
+  /** Outer face of the corridor wall the room opens off. */
+  readonly corridorOuterX: number;
+  /** Centre of the room's doorway, along Z. */
+  readonly doorZ: number;
+  readonly width: number;
+  readonly depth: number;
+  readonly height: number;
+  readonly wallThickness: number;
+  readonly slabThickness: number;
+}
+
+/**
+ * A sealed box room opening off a corridor. The corridor wall is not emitted
+ * here: the floor builder punches that opening so the two cannot disagree.
+ */
+export function room(options: RoomOptions): BoxSpec[] {
+  const { side, corridorOuterX, doorZ, width, depth, height, wallThickness: t } = options;
+
+  const nearX = side * corridorOuterX;
+  const farX = side * (corridorOuterX + depth);
+  const backX = side * (corridorOuterX + depth + t);
+  const zNear = doorZ - width / 2;
+  const zFar = doorZ + width / 2;
+
+  const shellX = ordered(nearX, backX);
+  const shellZ: [number, number] = [zNear - t, zFar + t];
+
+  return [
+    slab("floor", { x: shellX, y: [-options.slabThickness, 0], z: shellZ }),
+    slab("ceiling", {
+      x: shellX,
+      y: [height, height + options.slabThickness],
+      z: shellZ,
+    }),
+    // Back wall, parallel to the corridor.
+    ...wallWithOpenings({
+      lengthAxis: "z",
+      innerFace: farX,
+      outerFace: backX,
+      span: shellZ,
+      height,
+      trim: true,
+    }),
+    // The two dividing walls between neighbouring rooms.
+    ...wallWithOpenings({
+      lengthAxis: "x",
+      innerFace: zFar,
+      outerFace: zFar + t,
+      span: shellX,
+      height,
+      trim: true,
+    }),
+    ...wallWithOpenings({
+      lengthAxis: "x",
+      innerFace: zNear,
+      outerFace: zNear - t,
+      span: shellX,
+      height,
+      trim: true,
+    }),
+  ];
 }

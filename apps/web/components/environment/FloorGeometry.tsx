@@ -4,10 +4,10 @@ import { Box } from "./Box";
 
 /**
  * Draws a floor's boxes. All share one geometry and one material per kind, so
- * ~50 meshes cost a handful of GPU resources. Batch into InstancedMesh here if
- * a floor ever grows past a few hundred boxes.
+ * the mesh count costs a handful of GPU resources. Batch into InstancedMesh
+ * here if a floor grows past a few hundred boxes.
  */
-export function Corridor({ layout }: { layout: FloorLayout }) {
+export function FloorGeometry({ layout }: { layout: FloorLayout }) {
   return (
     <group>
       {layout.boxes.map((spec, index) => (

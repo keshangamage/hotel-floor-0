@@ -1,5 +1,5 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import * as THREE from "three";
 
 import {
@@ -8,7 +8,7 @@ import {
   EYE_HEIGHT,
   PLAYER_HEIGHT,
 } from "@/game/data/dimensions";
-import { collidersFrom, isClear, moveAndCollide } from "@/game/systems/collision";
+import { isClear, moveAndCollide } from "@/game/systems/collision";
 import { createBob, headBob } from "@/game/systems/headbob";
 import { input } from "@/game/systems/input";
 import {
@@ -17,6 +17,7 @@ import {
   integrateHorizontal,
   type MoveIntent,
 } from "@/game/systems/movement";
+import { useColliders } from "@/components/game/Colliders";
 import type { FloorLayout, Point3 } from "@/game/types";
 import { useGameStore } from "@/store/useGameStore";
 
@@ -33,7 +34,7 @@ const intent: MoveIntent = { forward: 0, strafe: 0, sprint: false, crouch: false
 
 export function Player({ layout }: { layout: FloorLayout }) {
   const camera = useThree((state) => state.camera);
-  const colliders = useMemo(() => collidersFrom(layout.boxes), [layout]);
+  const colliders = useColliders().list;
 
   const position = useRef<Point3>({
     x: layout.spawn[0],
@@ -43,11 +44,19 @@ export function Player({ layout }: { layout: FloorLayout }) {
   const velocity = useRef<Point3>({ x: 0, y: 0, z: 0 });
   const eyeHeight = useRef(EYE_HEIGHT);
   const travelled = useRef(0);
+  const spawned = useRef(false);
 
   useFrame((_, rawDelta) => {
     const dt = Math.min(rawDelta, MAX_DELTA);
     const p = position.current;
     const v = velocity.current;
+
+    // Face the spawn direction once, before the controls take over yaw.
+    if (!spawned.current) {
+      spawned.current = true;
+      euler.set(0, layout.spawnYaw, 0);
+      camera.quaternion.setFromEuler(euler);
+    }
 
     const playing = useGameStore.getState().phase === "playing";
 
