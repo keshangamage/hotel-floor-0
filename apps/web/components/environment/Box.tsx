@@ -6,7 +6,7 @@ import { CASTS_SHADOW, MATERIALS, geometryFor } from "./resources";
 export function Box({ spec }: { spec: BoxSpec }) {
   return (
     <mesh
-      geometry={geometryFor(spec.size)}
+      geometry={geometryFor(spec.size, spec.kind)}
       material={MATERIALS[spec.kind]}
       position={spec.position}
       castShadow={CASTS_SHADOW[spec.kind]}

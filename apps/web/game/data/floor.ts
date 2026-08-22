@@ -7,9 +7,13 @@ import {
   DOOR_WIDTH,
   SLAB_THICKNESS,
   WALL_THICKNESS,
+  WINDOW_ACROSS,
+  WINDOW_SILL,
+  WINDOW_TOP,
+  WINDOW_WIDTH,
 } from "./dimensions";
 import { ELEVATOR, buildElevator } from "./elevator";
-import { furnishHotelRoom, windowLight, type RoomFrame } from "./furniture";
+import { furnishHotelRoom, type RoomFrame } from "./furniture";
 import { DEFAULT_SEED, generateFloor } from "../generation/generateFloor";
 import type {
   BoxSpec, DoorSpec, FloorLayout, FloorSpec, LampSpec, PaintingSpec, PropSpec, RoomSpec, SwitchSpec, Vec3,
@@ -17,12 +21,6 @@ import type {
 
 const CORRIDOR_LAMP_INTENSITY = 17;
 const ROOM_LAMP_INTENSITY = 11;
-
-/** Window in the exterior wall, offset away from the bed. */
-const WINDOW_WIDTH = 1.3;
-const WINDOW_SILL = 0.9;
-const WINDOW_TOP = 2.1;
-const WINDOW_ACROSS = 0.85;
 
 const OUTER_X = CORRIDOR_HALF_WIDTH + WALL_THICKNESS;
 
@@ -163,12 +161,13 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
         backOpenings: hasWindow
           ? [
               {
-                at: spec_.doorZ + WINDOW_ACROSS,
+                at: spec_.doorZ + spec_.side * WINDOW_ACROSS,
                 width: WINDOW_WIDTH,
                 height: WINDOW_TOP,
                 recess: 0,
                 leaf: "open",
                 sill: WINDOW_SILL,
+                casing: true,
               },
             ]
           : undefined,
@@ -187,13 +186,10 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     const paneX = spec_.side * (OUTER_X + spec_.depth + WALL_THICKNESS / 2);
     boxes.push({
       kind: "glass",
-      position: [paneX, (WINDOW_SILL + WINDOW_TOP) / 2, spec_.doorZ + WINDOW_ACROSS],
+      position: [paneX, (WINDOW_SILL + WINDOW_TOP) / 2, spec_.doorZ + spec_.side * WINDOW_ACROSS],
       size: [0.03, WINDOW_TOP - WINDOW_SILL, WINDOW_WIDTH],
       collides: false,
     });
-    extraLamps.push(
-      windowLight(frame, spec_.depth, WINDOW_ACROSS, (WINDOW_SILL + WINDOW_TOP) / 2),
-    );
   }
 
   const lamps: LampSpec[] = spec.lamps.map((lamp) => ({

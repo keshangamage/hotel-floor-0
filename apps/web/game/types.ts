@@ -10,6 +10,7 @@ export type SurfaceKind =
   | "metal"
   | "wood"
   | "fabric"
+  | "linen"
   | "glass";
 
 /** One axis-aligned box. The renderer draws these and collision reads the same array. */
@@ -47,12 +48,17 @@ export interface LampSpec {
   readonly position: Vec3;
   readonly castShadow: boolean;
   readonly intensity: number;
-  /** "ceiling" is a recessed downlight, "bare" an omnidirectional bulb. */
-  readonly kind?: "ceiling" | "bare";
+  /**
+   * "ceiling" is a recessed downlight with a housing, "bare" an omnidirectional
+   * bulb, "spot" a bare downward cone that casts shadows.
+   */
+  readonly kind?: "ceiling" | "bare" | "spot";
   /** Unlit fixtures still render their housing, so they read as broken. */
   readonly lit?: boolean;
   readonly color?: string;
   readonly distance?: number;
+  /** Draws a physical fixture around the light. */
+  readonly fixture?: "table";
 }
 
 /** A hinged door. Rendered as a component because it moves. */

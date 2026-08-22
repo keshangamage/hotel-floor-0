@@ -23,6 +23,12 @@ export const ROOM_DEPTH = 4.5;
 export const TRIM_HEIGHT = 0.12;
 export const TRIM_DEPTH = 0.03;
 
+/** Window in a room's exterior wall. */
+export const WINDOW_WIDTH = 1.3;
+export const WINDOW_SILL = 0.9;
+export const WINDOW_TOP = 2.1;
+export const WINDOW_ACROSS = 0.85;
+
 /** Floor and ceiling slabs. Floor top sits at y = 0. */
 export const SLAB_THICKNESS = 0.1;
 
