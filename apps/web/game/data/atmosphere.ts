@@ -8,5 +8,5 @@ export const FOG_DENSITY = 0.055;
 export const LAMP_COLOR = "#ffcf9e";
 
 /** Just enough fill that shadowed areas are not pure black. */
-export const AMBIENT_INTENSITY = 0.1;
+export const AMBIENT_INTENSITY = 0.16;
 export const HEMISPHERE_INTENSITY = 0.22;

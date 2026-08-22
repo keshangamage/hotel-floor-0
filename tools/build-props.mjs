@@ -16,7 +16,7 @@ import { mkdir, stat } from "node:fs/promises";
 /** id is the name the game uses; node is a prefix of the source node name. */
 const PROPS = [
   { id: "armchair",       node: "chair2",                            ratio: 0.5,  texture: 1024 },
-  { id: "desk",           node: "S_Dirty_Wooden_Table",              ratio: 0.8,  texture: 1024 },
+  { id: "workbench",      node: "S_Dirty_Wooden_Table",              ratio: 0.8,  texture: 1024 },
   { id: "sideboard",      node: "victorian_coffee_table",            ratio: 0.9,  texture: 1024 },
   { id: "chandelier",     node: "lantern_chandelier_01_4k",          ratio: 0.7,  texture: 1024 },
   { id: "painting-large", node: "fancy_picture_frame",               ratio: 1,    texture: 1024 },
