@@ -20,6 +20,7 @@ import { generateFloor } from "@/game/generation/generateFloor";
 import { useGameStore } from "@/store/useGameStore";
 
 import { ColliderProvider } from "./Colliders";
+import { Effects } from "./Effects";
 import { EnvironmentProbe } from "./EnvironmentProbe";
 import { InteractionDriver, InteractionProvider } from "./Interactions";
 
@@ -78,6 +79,7 @@ export default function GameCanvas() {
 
       <EnvironmentProbe />
       <Scene />
+      <Effects />
     </Canvas>
   );
 }

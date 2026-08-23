@@ -24,10 +24,12 @@ export function RoomSpot({ spec }: { spec: LampSpec }) {
         decay={2}
         distance={spec.distance ?? 8}
         castShadow={spec.castShadow}
-        shadow-mapSize={[1024, 1024]}
+        // A 1024 map stretched over the whole room gives soft, vague contacts.
+        shadow-mapSize={[2048, 2048]}
         shadow-camera-near={0.2}
         shadow-camera-far={9}
-        shadow-bias={-0.0012}
+        shadow-bias={-0.0007}
+        shadow-normalBias={0.02}
       />
     </group>
   );

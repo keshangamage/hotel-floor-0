@@ -24,10 +24,17 @@ export const TRIM_HEIGHT = 0.12;
 export const TRIM_DEPTH = 0.03;
 
 /** Window in a room's exterior wall. */
-export const WINDOW_WIDTH = 1.3;
-export const WINDOW_SILL = 0.9;
-export const WINDOW_TOP = 2.1;
-export const WINDOW_ACROSS = 0.85;
+export const WINDOW_ACROSS = 0.65;
+/** The window unit's frame reaches below the glazed opening. Set high on the
+ * wall, leaving a header below the ceiling. */
+export const WINDOW_FRAME_BASE = 1.3;
+/** Trims the window unit down from its authored size. */
+export const WINDOW_SCALE = 0.85;
+// The opening is measured off the frame, so one factor moves both and the
+// frame cannot stop covering the wall edges.
+export const WINDOW_WIDTH = 1.66 * WINDOW_SCALE;
+export const WINDOW_SILL = WINDOW_FRAME_BASE + 0.24 * WINDOW_SCALE;
+export const WINDOW_TOP = WINDOW_FRAME_BASE + 0.97 * WINDOW_SCALE;
 
 /** Floor and ceiling slabs. Floor top sits at y = 0. */
 export const SLAB_THICKNESS = 0.1;

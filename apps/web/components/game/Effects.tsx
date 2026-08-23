@@ -1,62 +1,34 @@
-import {
-  Bloom,
-  BrightnessContrast,
-  EffectComposer,
-  HueSaturation,
-  N8AO,
-  Noise,
-  ToneMapping,
-  Vignette,
-} from "@react-three/postprocessing";
-import { BlendFunction, ToneMappingMode } from "postprocessing";
-import * as THREE from "three";
+import { EffectComposer, N8AO } from "@react-three/postprocessing";
 
 /**
- * The difference between a lit 3D scene and a render is mostly here.
+ * Ambient occlusion only.
  *
- * Order matters: occlusion is applied to raw lighting, bloom needs HDR values,
- * so tone mapping comes after it, and the grade and grain sit last.
+ * A previous attempt added six effects at once and moved tone mapping off the
+ * renderer into the chain, which changes every pixel in the scene and made
+ * everything look wrong. The renderer keeps its own ACES tone mapping here, and
+ * this composites a single darkening pass on top of it.
+ *
+ * Occlusion is the biggest single realism lever: it darkens contacts and
+ * corners, which is what makes surfaces feel joined rather than stacked.
  */
 export function Effects() {
   return (
     <EffectComposer
-      // MSAA on the composer's target, since the canvas AA is bypassed once
-      // rendering goes through here. Two samples holds 60fps.
-      multisampling={2}
-      frameBufferType={THREE.HalfFloatType}
+      // The composer's target replaces the canvas buffer, so antialiasing has
+      // to be requested here or the scene renders with jagged edges.
+      multisampling={4}
     >
-      {/*
-       * Ambient occlusion is the single biggest win: it darkens contacts and
-       * corners, which is what stops furniture reading as objects floating in
-       * a lit room. Half resolution to stay inside the frame budget.
-       */}
       <N8AO
         halfRes
         quality="medium"
-        aoRadius={1.1}
-        distanceFalloff={0.9}
-        intensity={2.6}
+        aoRadius={1.0}
+        distanceFalloff={0.8}
+        // Restrained on purpose: heavy AO reads as dirt rather than shadow.
+        intensity={1.7}
         aoSamples={16}
         denoiseSamples={4}
-        color="#0a0806"
+        color="#0b0906"
       />
-
-      {/* Only the lamps are above the threshold, so only the lamps bleed. */}
-      <Bloom
-        luminanceThreshold={0.65}
-        luminanceSmoothing={0.3}
-        intensity={0.55}
-        mipmapBlur
-      />
-
-      <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-
-      {/* Warm, desaturated and slightly crushed, like an old hotel at night. */}
-      <HueSaturation hue={0.02} saturation={-0.12} />
-      <BrightnessContrast brightness={-0.02} contrast={0.14} />
-
-      <Vignette offset={0.28} darkness={0.62} blendFunction={BlendFunction.NORMAL} />
-      <Noise opacity={0.028} blendFunction={BlendFunction.OVERLAY} />
     </EffectComposer>
   );
 }

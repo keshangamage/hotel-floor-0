@@ -2,9 +2,10 @@ import { boxFromBounds } from "./builders";
 import {
   CEILING_HEIGHT,
   WINDOW_ACROSS,
+  WINDOW_FRAME_BASE,
+  WINDOW_SCALE,
   WINDOW_SILL,
   WINDOW_TOP,
-  WINDOW_WIDTH,
 } from "./dimensions";
 import { PROP_SIZES, type PropId } from "./propSizes.generated";
 import type { BoxSpec, LampSpec, PropSpec, SurfaceKind, SwitchSpec, Vec3 } from "../types";
@@ -125,16 +126,26 @@ function place(frame: RoomFrame, roomId: string, item: Placement) {
  * The doorway centreline is kept clear from the door to the far wall, so the
  * player always has a way in and to the window.
  */
+/** Bedside table, kept in one place so the lamp sits on top of it. */
+const NIGHTSTAND = { depth: 4.21, across: -0.04 } as const;
+
 const LAYOUT: readonly Placement[] = [
-  // Bed along the left wall, head to the exterior wall.
-  { id: "bed", depth: 3.35, across: -0.98, yaw: 90, blockTo: 0.75 },
-  // Wardrobe just inside the door, back to the right wall.
-  { id: "wardrobe", depth: 0.95, across: 1.42, yaw: 0 },
-  // Desk against the same wall, under the window end, chair tucked in.
-  { id: "desk", depth: 2.75, across: 1.24, yaw: 0, scale: 0.85 },
+  // Bed along the left wall, head to the exterior wall. This model's long axis
+  // is X, so it needs no quarter turn.
+  { id: "bed", depth: 3.45, across: -1.06, yaw: 0, blockTo: 0.72 },
+  // Bedside table against the far wall. It faces +Z, so a quarter turn points
+  // it back into the room rather than along the wall.
+  { id: "nightstand", depth: NIGHTSTAND.depth, across: NIGHTSTAND.across, yaw: -90 },
+  // Shelf just inside the door, back to the left wall. It opens toward +Z,
+  // which at yaw 0 faces into the room with its back to the wall.
+  { id: "wardrobe", depth: 0.95, across: -1.48, yaw: 0 },
+  // Desk against the right wall, under the window end, chair tucked in. Sized
+  // by the build, so it needs no scale here.
+  { id: "desk", depth: 2.75, across: 1.24, yaw: 0 },
   // The gap between the walkway and the desk is narrower than the chair, so a
-  // fully pulled-out chair would block the only route through the room.
-  { id: "chair", depth: 2.75, across: 0.68, yaw: -90 },
+  // fully pulled-out chair would block the only route through the room. This
+  // model faces +Z, which is toward the desk at yaw 0.
+  { id: "chair", depth: 2.75, across: 0.68, yaw: 0 },
   // Rug over the open floor, set flush so furniture legs do not clip through
   // it. Walked on, so no collider.
   { id: "rug", depth: 2.00, across: 0.15, yaw: 0, scale: 0.55, solid: false, y: -0.006 },
@@ -148,68 +159,6 @@ const LAYOUT: readonly Placement[] = [
     y: CEILING_HEIGHT - PROP_SIZES.chandelier[1] * 0.5,
   },
 ];
-
-/** Nightstand: neither library has one, so it stays hand-built. */
-const NIGHTSTAND = {
-  depth: [3.88, 4.40] as Range,
-  across: [-0.30, 0.22] as Range,
-  height: 0.52,
-};
-
-function cabinet(
-  frame: RoomFrame,
-  depth: Range,
-  y: Range,
-  across: Range,
-  fronts = 2,
-): BoxSpec[] {
-  const PLINTH = 0.075;
-  const TOP = 0.03;
-  const OVERHANG = 0.022;
-  const body: Range = [y[0] + PLINTH, y[1] - TOP];
-
-  const out: BoxSpec[] = [
-    piece(frame, "wood", [depth[0] + 0.03, depth[1] - 0.03], [y[0], y[0] + PLINTH],
-      [across[0] + 0.03, across[1] - 0.03]),
-    piece(frame, "wood", depth, body, across),
-    piece(frame, "wood", [depth[0] - OVERHANG, depth[1] + OVERHANG], [y[1] - TOP, y[1]],
-      [across[0] - OVERHANG, across[1] + OVERHANG]),
-  ];
-
-  const step = (body[1] - body[0] - 0.05) / fronts;
-  const mid = (across[0] + across[1]) / 2;
-  for (let i = 0; i < fronts; i += 1) {
-    const y0 = body[0] + 0.025 + i * step;
-    out.push(
-      piece(frame, "trim", [depth[0] - 0.022, depth[0]], [y0 + 0.014, y0 + step - 0.014],
-        [across[0] + 0.04, across[1] - 0.04]),
-      piece(frame, "metal", [depth[0] - 0.046, depth[0] - 0.022],
-        [y0 + step / 2 - 0.011, y0 + step / 2 + 0.011], [mid - 0.07, mid + 0.07]),
-    );
-  }
-  return out;
-}
-
-/** Sill, glazing bars, curtains and a pelmet. */
-function windowDressing(frame: RoomFrame, depth: number): BoxSpec[] {
-  const left = WINDOW_ACROSS - WINDOW_WIDTH / 2;
-  const right = WINDOW_ACROSS + WINDOW_WIDTH / 2;
-  const middle = (WINDOW_SILL + WINDOW_TOP) / 2;
-  return [
-    piece(frame, "wood", [depth - 0.22, depth - 0.02], [WINDOW_SILL - 0.05, WINDOW_SILL],
-      [left - 0.09, right + 0.09], false),
-    piece(frame, "wood", [depth - 0.06, depth - 0.03], [WINDOW_SILL, WINDOW_TOP],
-      [WINDOW_ACROSS - 0.02, WINDOW_ACROSS + 0.02], false),
-    piece(frame, "wood", [depth - 0.06, depth - 0.03], [middle - 0.02, middle + 0.02],
-      [left, right], false),
-    piece(frame, "linen", [depth - 0.24, depth - 0.16], [WINDOW_SILL - 0.5, WINDOW_TOP + 0.16],
-      [left - 0.24, left + 0.04], false),
-    piece(frame, "linen", [depth - 0.24, depth - 0.16], [WINDOW_SILL - 0.5, WINDOW_TOP + 0.16],
-      [right - 0.04, right + 0.24], false),
-    piece(frame, "wood", [depth - 0.26, depth - 0.14], [WINDOW_TOP + 0.16, WINDOW_TOP + 0.26],
-      [left - 0.24, right + 0.24], false),
-  ];
-}
 
 export interface Furnishing {
   readonly boxes: BoxSpec[];
@@ -236,24 +185,29 @@ export function furnishHotelRoom(
   }
 
   boxes.push(
-    ...cabinet(frame, NIGHTSTAND.depth, [0, NIGHTSTAND.height], NIGHTSTAND.across, 2),
-    ...windowDressing(frame, depth),
     // Drop rod for the ceiling fixture.
     piece(frame, "metal", [2.18, 2.22], [CEILING_HEIGHT - 0.34, CEILING_HEIGHT],
       [-0.02, 0.02], false),
   );
 
+  // The window unit stands in the wall opening, facing back into the room.
+  props.push(place(frame, roomId, {
+    id: "window",
+    depth: depth - (PROP_SIZES.window[2] * WINDOW_SCALE) / 2,
+    across: WINDOW_ACROSS,
+    yaw: -90,
+    scale: WINDOW_SCALE,
+    y: WINDOW_FRAME_BASE,
+    solid: false,
+  }).prop);
+
   const lampId = `${roomId}-bedside`;
-  const nightstandCentre = {
-    depth: (NIGHTSTAND.depth[0] + NIGHTSTAND.depth[1]) / 2,
-    across: (NIGHTSTAND.across[0] + NIGHTSTAND.across[1]) / 2,
-  };
 
   const lamps: LampSpec[] = [
     {
       id: lampId,
       // Bulb sits at the shade's centre, above the nightstand top.
-      position: localPoint(frame, nightstandCentre.depth, NIGHTSTAND.height + 0.285, nightstandCentre.across),
+      position: localPoint(frame, NIGHTSTAND.depth, PROP_SIZES.nightstand[1] + 0.285, NIGHTSTAND.across),
       fixture: "table",
       castShadow: false,
       intensity: 2.8,

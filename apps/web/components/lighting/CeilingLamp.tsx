@@ -44,10 +44,11 @@ export function CeilingLamp({ spec }: { spec: LampSpec }) {
             decay={2}
             distance={11}
             castShadow={spec.castShadow}
-            shadow-mapSize={[1024, 1024]}
+            shadow-mapSize={[2048, 2048]}
             shadow-camera-near={0.3}
             shadow-camera-far={11}
-            shadow-bias={-0.0015}
+            shadow-bias={-0.0009}
+            shadow-normalBias={0.02}
           />
         </>
       )}
