@@ -11,6 +11,7 @@ import {
 import { isClear, moveAndCollide } from "@/game/systems/collision";
 import { createBob, headBob } from "@/game/systems/headbob";
 import { input } from "@/game/systems/input";
+import { motion } from "@/game/systems/motion";
 import {
   applyGravity,
   horizontalSpeed,
@@ -97,6 +98,13 @@ export function Player({ layout }: { layout: FloorLayout }) {
     const speed = horizontalSpeed(v);
     travelled.current += speed * dt;
     headBob(travelled.current, speed, bob);
+
+    // Published for anything mounted after this that needs the player's state
+    // every frame, which is how footsteps stay in step with the legs.
+    motion.travelled = travelled.current;
+    motion.speed = speed;
+    motion.grounded = hit.grounded;
+    motion.gait = crouched ? "crouch" : intent.sprint ? "sprint" : "walk";
 
     const targetEye = crouched ? CROUCH_EYE_HEIGHT : EYE_HEIGHT;
     eyeHeight.current += (targetEye - eyeHeight.current) * Math.min(1, CROUCH_LERP * dt);

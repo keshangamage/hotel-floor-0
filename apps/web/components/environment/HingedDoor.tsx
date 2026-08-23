@@ -1,9 +1,10 @@
 import { useFrame } from "@react-three/fiber";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { useDynamicCollider } from "@/components/game/Colliders";
 import { Interactable } from "@/components/interaction/Interactable";
+import { audio } from "@/game/systems/audio";
 import { doorFootprint, doorYaw } from "@/game/systems/doors";
 import type { DoorSpec } from "@/game/types";
 
@@ -18,10 +19,21 @@ export function HingedDoor({ spec }: { spec: DoorSpec }) {
   const progress = useRef(0);
   const [open, setOpen] = useState(false);
 
+  // Roughly the middle of the leaf, at handle height. The hinge alone would put
+  // a corridor door's creak half a metre into the wall.
+  const source = useMemo<[number, number, number]>(
+    () => [spec.hinge[0], 1.05, spec.hinge[2] + spec.width / 2],
+    [spec.hinge, spec.width],
+  );
+
   const toggle = useCallback(() => {
     if (spec.locked) return;
-    setOpen((was) => !was);
-  }, [spec.locked]);
+    const next = !open;
+    setOpen(next);
+    // Closing drags the same hinge the other way, so it is the same creak a
+    // little lower and heavier.
+    audio.playAt("door", source, { rate: next ? 1 : 0.88, gain: next ? 0.9 : 1 });
+  }, [spec.locked, open, source]);
 
   const prompt = spec.locked ? "Locked" : open ? "Close" : "Open";
 

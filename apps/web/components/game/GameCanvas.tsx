@@ -11,6 +11,7 @@ import { Props } from "@/components/environment/Props";
 import { RoomSigns } from "@/components/environment/RoomSign";
 import { Switches } from "@/components/environment/Switches";
 import { HotelLighting } from "@/components/lighting/HotelLighting";
+import { Flashlight } from "@/components/player/Flashlight";
 import { InputActions } from "@/components/player/InputActions";
 import { LookControls } from "@/components/player/LookControls";
 import { Player } from "@/components/player/Player";
@@ -19,6 +20,7 @@ import { buildFloor } from "@/game/data/floor";
 import { generateFloor } from "@/game/generation/generateFloor";
 import { useGameStore } from "@/store/useGameStore";
 
+import { Audio } from "./Audio";
 import { ColliderProvider } from "./Colliders";
 import { Effects } from "./Effects";
 import { EnvironmentProbe } from "./EnvironmentProbe";
@@ -50,6 +52,8 @@ function Scene() {
         <Switches layout={layout} />
         <InputActions />
         <Player layout={layout} />
+        {/* After the player, so the beam follows the camera's final position. */}
+        <Flashlight />
         {/* Last, so the raycast reads the camera's final position. */}
         <InteractionDriver />
       </InteractionProvider>
@@ -79,6 +83,8 @@ export default function GameCanvas() {
 
       <EnvironmentProbe />
       <Scene />
+      {/* After the scene, so it reads the player's final motion each frame. */}
+      <Audio />
       <Effects />
     </Canvas>
   );

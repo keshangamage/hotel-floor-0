@@ -52,6 +52,9 @@ Old Horror Mansion Hall GLB.glb
 /*.glb
 /*.gltf
 /*.fbx
+# source audio: the sliced sprite in public/audio is what ships
+/*.mp3
+/*.wav
 
 oldfurniturepack_01_fbx (1)
 
