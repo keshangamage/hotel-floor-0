@@ -220,18 +220,19 @@ export function furnishHotelRoom(
       id: `${roomId}-window`,
       position: localPoint(frame, depth + 0.5, (WINDOW_SILL + WINDOW_TOP) / 2, WINDOW_ACROSS),
       castShadow: false,
-      intensity: 3.4,
+      intensity: 2.8,
       kind: "bare",
       color: "#7d9dd6",
       distance: 7,
     },
     {
-      // Fake bounce off the floor. Without it nothing below knee height is lit,
-      // and furniture loses contact with the ground.
+      // Fake bounce off the floor, so something lights below knee height.
+      // Kept low: it is fill, so it lifts the whole room evenly, and occlusion
+      // now does most of the grounding it was carrying.
       id: `${roomId}-bounce`,
       position: localPoint(frame, 2.7, 0.3, -0.3),
       castShadow: false,
-      intensity: 7,
+      intensity: 3,
       kind: "bare",
       color: "#c99a63",
       distance: 8,
@@ -241,7 +242,7 @@ export function furnishHotelRoom(
       id: `${roomId}-ceiling`,
       position: localPoint(frame, 2.2, CEILING_HEIGHT - 0.2, 0),
       castShadow: true,
-      intensity: 15,
+      intensity: 10,
       kind: "spot",
       color: "#ffcf9e",
       distance: 9.5,
