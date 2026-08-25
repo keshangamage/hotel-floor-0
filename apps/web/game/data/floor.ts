@@ -16,7 +16,8 @@ import { ELEVATOR, buildElevator } from "./elevator";
 import { furnishHotelRoom, type RoomFrame } from "./furniture";
 import { DEFAULT_SEED, generateFloor } from "../generation/generateFloor";
 import type {
-  BoxSpec, DoorSpec, FloorLayout, FloorSpec, LampSpec, PaintingSpec, PropSpec, RoomSpec, SwitchSpec, Vec3,
+  BoxSpec, DoorSpec, FloorLayout, FloorSpec, LampSpec, PaintingSpec, NoteSpec,
+  PropSpec, RoomSpec, SwitchSpec, Vec3,
 } from "../types";
 
 const CORRIDOR_LAMP_INTENSITY = 17;
@@ -143,6 +144,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
   const spawnPoints = new Map<number, Vec3>();
   const switches: SwitchSpec[] = [];
   const props: PropSpec[] = [];
+  const notes: NoteSpec[] = [];
 
   for (const spec_ of spec.rooms) {
     const frame: RoomFrame = { side: spec_.side, nearX: OUTER_X, doorZ: spec_.doorZ };
@@ -181,6 +183,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     extraLamps.push(...furnishing.lamps);
     switches.push(...furnishing.switches);
     props.push(...furnishing.props);
+    notes.push(...furnishing.notes);
     spawnPoints.set(spec_.number, furnishing.spawn);
 
     const paneX = spec_.side * (OUTER_X + spec_.depth + WALL_THICKNESS / 2);
@@ -194,9 +197,12 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
 
   const lamps: LampSpec[] = spec.lamps.map((lamp) => ({
     position: [0, CEILING_HEIGHT, lamp.z],
-    castShadow: lamp.castShadow && lamp.lit,
+    // A flickering fixture never casts: rebuilding a shadow map every frame
+    // costs more than the whole rest of the corridor's lighting.
+    castShadow: lamp.castShadow && lamp.lit && !lamp.flicker,
     intensity: CORRIDOR_LAMP_INTENSITY,
     lit: lamp.lit,
+    flicker: lamp.flicker,
   }));
 
   lamps.push(...extraLamps);
@@ -225,6 +231,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     switches,
     props,
     paintings: corridorPaintings(spec),
+    notes,
     spawn,
     spawnYaw: start ? (start.side === 1 ? Math.PI / 2 : -Math.PI / 2) : Math.PI,
   };

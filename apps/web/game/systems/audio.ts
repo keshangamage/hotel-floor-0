@@ -137,6 +137,162 @@ export class AudioEngine {
     }
   }
 
+  /** Sends a voice out through the world, or straight to the mix if it has no place. */
+  private route(position?: readonly [number, number, number]): AudioNode | null {
+    const context = this.context;
+    if (!context || !this.master) return null;
+    if (!position) return this.master;
+
+    const panner = context.createPanner();
+    panner.panningModel = "HRTF";
+    panner.distanceModel = "inverse";
+    panner.refDistance = 1.6;
+    panner.maxDistance = 30;
+    panner.rolloffFactor = 1.3;
+    if (panner.positionX) {
+      panner.positionX.value = position[0];
+      panner.positionY.value = position[1];
+      panner.positionZ.value = position[2];
+    } else {
+      (panner as unknown as { setPosition: (x: number, y: number, z: number) => void })
+        .setPosition(position[0], position[1], position[2]);
+    }
+    panner.connect(this.master);
+    return panner;
+  }
+
+  /**
+   * The arrival bell.
+   *
+   * Two partials a fifth apart with different decays, which is what a struck
+   * piece of metal does. One sine reads as a test tone.
+   */
+  ding(position?: readonly [number, number, number]): void {
+    const context = this.ensure();
+    const out = this.route(position);
+    if (!context || !out) return;
+    const now = context.currentTime;
+
+    for (const [ratio, level, decay] of [[1, 0.3, 1.9], [1.5, 0.13, 1.2], [2.76, 0.05, 0.7]] as const) {
+      const partial = context.createOscillator();
+      partial.type = "sine";
+      partial.frequency.value = 660 * ratio;
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(level, now + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+      partial.connect(gain).connect(out);
+      partial.start(now);
+      partial.stop(now + decay + 0.05);
+    }
+  }
+
+  /** Doors running on their track: noise pushed through a moving band. */
+  slide(seconds: number, position?: readonly [number, number, number]): void {
+    const context = this.ensure();
+    const out = this.route(position);
+    if (!context || !out || !this.white) return;
+    const now = context.currentTime;
+
+    const source = context.createBufferSource();
+    source.buffer = this.white;
+    source.loop = true;
+
+    const band = context.createBiquadFilter();
+    band.type = "bandpass";
+    band.Q.value = 1.4;
+    // Rises as the doors gather speed and falls as they arrive, which is what
+    // makes it read as something moving rather than a hiss.
+    band.frequency.setValueAtTime(320, now);
+    band.frequency.linearRampToValueAtTime(900, now + seconds * 0.45);
+    band.frequency.linearRampToValueAtTime(260, now + seconds);
+
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.09, now + 0.12);
+    gain.gain.setValueAtTime(0.09, now + seconds - 0.18);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + seconds);
+
+    source.connect(band).connect(gain).connect(out);
+    source.start(now, Math.random() * 1.5);
+    source.stop(now + seconds + 0.05);
+  }
+
+  /**
+   * The car under way: a motor that is felt more than heard.
+   *
+   * Not positional. The player is inside the thing making the noise, so it
+   * comes from everywhere, and panning it would put the machinery in one ear.
+   */
+  motor(): Voice | null {
+    const context = this.ensure();
+    if (!context || !this.master || !this.brown) return null;
+    const now = context.currentTime;
+
+    const rumble = context.createBufferSource();
+    rumble.buffer = this.brown;
+    rumble.loop = true;
+    const low = context.createBiquadFilter();
+    low.type = "lowpass";
+    low.frequency.value = 320;
+
+    // A little tone under the rumble, or it sounds like wind rather than a machine.
+    const hum = context.createOscillator();
+    hum.type = "sawtooth";
+    hum.frequency.value = 47;
+    const humGain = context.createGain();
+    humGain.gain.value = 0.05;
+    const humLow = context.createBiquadFilter();
+    humLow.type = "lowpass";
+    humLow.frequency.value = 260;
+
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.32, now + 0.7);
+
+    rumble.connect(low).connect(gain);
+    hum.connect(humGain).connect(humLow).connect(gain);
+    gain.connect(this.master);
+    rumble.start();
+    hum.start();
+
+    const voice: Voice = {
+      stop: () => {
+        const t = context.currentTime;
+        gain.gain.cancelScheduledValues(t);
+        gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), t);
+        // Winding down, not cut off.
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+        hum.frequency.linearRampToValueAtTime(28, t + 0.9);
+        rumble.stop(t + 1);
+        hum.stop(t + 1);
+        this.voices.delete(voice);
+      },
+    };
+    this.voices.add(voice);
+    return voice;
+  }
+
+  /** A switch or a button, so pressing one is not silent. */
+  click(position?: readonly [number, number, number]): void {
+    const context = this.ensure();
+    const out = this.route(position);
+    if (!context || !out) return;
+    const now = context.currentTime;
+
+    const tick = context.createOscillator();
+    tick.type = "square";
+    tick.frequency.setValueAtTime(2100, now);
+    tick.frequency.exponentialRampToValueAtTime(900, now + 0.03);
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.07, now + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+    tick.connect(gain).connect(out);
+    tick.start(now);
+    tick.stop(now + 0.06);
+  }
+
   /** A one shot coming from somewhere in the world, so it falls off with distance. */
   playAt(
     name: string,
@@ -180,10 +336,28 @@ export class AudioEngine {
   }
 
   /**
+   * A second set of steps, a little behind and a little quieter.
+   *
+   * Placed in the world and delayed, so it arrives from where the player is
+   * not. Deliberately uses the same recordings as their own feet: something
+   * walking exactly like you is worse than something that does not.
+   */
+  echoStep(delaySeconds: number, position: readonly [number, number, number]): void {
+    this.sampledStep(0.5, { delay: delaySeconds, position, rate: 0.93 });
+  }
+
+  /**
    * A different take each time, never the same one twice running: an identical
    * repeat is what gives a sample library away.
    */
-  private sampledStep(weight: number): void {
+  private sampledStep(
+    weight: number,
+    options: {
+      delay?: number;
+      rate?: number;
+      position?: readonly [number, number, number];
+    } = {},
+  ): void {
     const context = this.context;
     if (!context || !this.master || !this.steps) return;
 
@@ -195,16 +369,19 @@ export class AudioEngine {
     const clip = this.sprite[index];
     if (!clip) return;
 
-    const now = context.currentTime;
+    const out = this.route(options.position);
+    if (!out) return;
+    const now = context.currentTime + (options.delay ?? 0);
+
     const source = context.createBufferSource();
     source.buffer = this.steps;
     // A little either side of unity, which reads as a different footfall
     // rather than as a pitched up copy.
-    source.playbackRate.value = 0.94 + Math.random() * 0.12;
+    source.playbackRate.value = (options.rate ?? 1) * (0.94 + Math.random() * 0.12);
 
     const gain = context.createGain();
     gain.gain.value = weight * (0.85 + Math.random() * 0.3);
-    source.connect(gain).connect(this.master);
+    source.connect(gain).connect(out);
     source.start(now, clip.offset, clip.duration);
   }
 

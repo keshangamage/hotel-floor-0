@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { Doors } from "@/components/environment/Doors";
 import { Elevator } from "@/components/environment/Elevator";
 import { FloorGeometry } from "@/components/environment/FloorGeometry";
+import { Notes } from "@/components/environment/Note";
 import { Paintings } from "@/components/environment/Painting";
 import { Props } from "@/components/environment/Props";
 import { RoomSigns } from "@/components/environment/RoomSign";
@@ -34,7 +35,8 @@ import { InteractionDriver, InteractionProvider } from "./Interactions";
 function Scene() {
   const floorNumber = useGameStore((state) => state.floorNumber);
   const seed = useGameStore((state) => state.seed);
-  const layout = useMemo(() => buildFloor(generateFloor(floorNumber, seed)), [floorNumber, seed]);
+  const spec = useMemo(() => generateFloor(floorNumber, seed), [floorNumber, seed]);
+  const layout = useMemo(() => buildFloor(spec), [spec]);
 
   return (
       <ColliderProvider boxes={layout.boxes}>
@@ -44,11 +46,12 @@ function Scene() {
         <FloorGeometry layout={layout} />
         <Props layout={layout} />
         <Paintings paintings={layout.paintings} />
+        <Notes notes={layout.notes} />
         {/* Doors register their frame callback before the player, so
             colliders are already positioned when movement resolves. */}
         <Doors layout={layout} />
         <RoomSigns layout={layout} />
-        <Elevator />
+        <Elevator anomalous={spec.anomaly !== null} />
         <Switches layout={layout} />
         <InputActions />
         <Player layout={layout} />

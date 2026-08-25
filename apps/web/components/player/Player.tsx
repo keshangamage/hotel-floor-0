@@ -59,7 +59,10 @@ export function Player({ layout }: { layout: FloorLayout }) {
       camera.quaternion.setFromEuler(euler);
     }
 
-    const playing = useGameStore.getState().phase === "playing";
+    // Reading holds the player still: the note covers the view, so walking
+    // blind into a corridor would be the game's fault rather than theirs.
+    const store = useGameStore.getState();
+    const playing = store.phase === "playing" && store.reading === null;
 
     // Yaw comes from the camera, which PointerLockControls owns.
     euler.setFromQuaternion(camera.quaternion);

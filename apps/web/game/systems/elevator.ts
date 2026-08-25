@@ -15,8 +15,8 @@ export const ELEVATOR_CONFIG: ElevatorConfig = {
   openTime: 1.1,
   holdTime: 5,
   travelPerFloor: 2.4,
-  // Floor 0 should not be reachable, which is rather the point.
-  servedFloors: [5, 0],
+  // The whole descent, one floor at a time.
+  servedFloors: [5, 4, 3, 2, 1, 0],
 };
 
 export interface ElevatorState {
