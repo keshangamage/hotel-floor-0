@@ -1,5 +1,5 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   CAR_CENTRE,
@@ -11,14 +11,17 @@ import {
 } from "@/game/data/elevator";
 import {
   ELEVATOR_CONFIG,
+  type ElevatorPhase,
   callElevator,
   closeDoors,
   createElevator,
   displayFloor,
-  isServed,
   requestFloor,
   stepElevator,
 } from "@/game/systems/elevator";
+import { audio } from "@/game/systems/audio";
+import { REFERENCE_FLOOR } from "@/game/systems/anomaly";
+import { DEPTH_TO_WIN, judge, type Call } from "@/game/systems/descent";
 import { useGameStore } from "@/store/useGameStore";
 
 import { PanelButton } from "./PanelButton";
@@ -28,12 +31,11 @@ import { SlidingDoor } from "./SlidingDoor";
 
 /** Colder than the corridor tungsten, so the car reads as a different space. */
 const CAR_LIGHT_COLOR = "#cfe0ff";
+/** Doors and bell are heard from the corridor, so they come from the doorway. */
+const SOUND_AT: readonly [number, number, number] = [0, 1.2, ELEVATOR.frontZ];
 const PANEL_SIZE: [number, number, number] = [PANEL_WIDTH, ELEVATOR.doorHeight, ELEVATOR.doorThickness];
 
-/** Top to bottom, as a hotel panel reads. */
-const FLOOR_BUTTONS = [5, 4, 3, 2, 1, 0];
-
-export function Elevator() {
+export function Elevator({ anomalous }: { anomalous: boolean }) {
   const camera = useThree((state) => state.camera);
   const setFloorNumber = useGameStore((state) => state.setFloorNumber);
   const startFloor = useGameStore.getState().floorNumber;
@@ -41,9 +43,34 @@ export function Elevator() {
   const [readout, setReadout] = useState(startFloor);
   const arrivedAt = useRef(startFloor);
 
+  // The car starts closed, so this needs no ref read during render.
+  const wasPhase = useRef<ElevatorPhase>("closed");
+  const motor = useRef<{ stop: () => void } | null>(null);
+
+  // The car outlives no component but this one, so its motor stops here.
+  useEffect(() => () => motor.current?.stop(), []);
+
   useFrame((_, delta) => {
     const state = elevator.current;
     stepElevator(state, Math.min(delta, 0.05), ELEVATOR_CONFIG);
+
+    // Sound follows the state machine's transitions rather than polling, so
+    // each one fires exactly once.
+    if (state.phase !== wasPhase.current) {
+      const was = wasPhase.current;
+      wasPhase.current = state.phase;
+
+      if (state.phase === "opening" || state.phase === "closing") {
+        audio.slide(ELEVATOR_CONFIG.openTime, SOUND_AT);
+      }
+      if (state.phase === "travelling") {
+        motor.current = audio.motor();
+      } else if (was === "travelling") {
+        motor.current?.stop();
+        motor.current = null;
+        audio.ding(SOUND_AT);
+      }
+    }
 
     const shown = displayFloor(state);
     if (shown !== readout) setReadout(shown);
@@ -57,11 +84,30 @@ export function Elevator() {
   });
 
   const doorProgress = useCallback(() => elevator.current.doors, []);
-  const call = useCallback(() => callElevator(elevator.current, ELEVATOR_CONFIG), []);
-
-  const press = useCallback((floor: number) => {
-    requestFloor(elevator.current, floor, ELEVATOR_CONFIG);
+  const call = useCallback(() => {
+    audio.click(SOUND_AT);
+    callElevator(elevator.current, ELEVATOR_CONFIG);
   }, []);
+
+  const finished = useGameStore((state) => state.depth >= DEPTH_TO_WIN);
+
+  // The only two things the player can say: something was wrong, or it was not.
+  const press = useCallback((call: Call) => {
+    const { depth, recordCall, beginAgain } = useGameStore.getState();
+    audio.click(SOUND_AT);
+
+    // Floor zero is the end of the run. The car will not judge another call
+    // there, which would take the finished run away, but it will take the
+    // player back up to start a different hotel.
+    if (depth >= DEPTH_TO_WIN) {
+      beginAgain();
+      requestFloor(elevator.current, REFERENCE_FLOOR, ELEVATOR_CONFIG);
+      return;
+    }
+    const verdict = judge(depth, anomalous, call);
+    recordCall(verdict);
+    requestFloor(elevator.current, verdict.floor, ELEVATOR_CONFIG);
+  }, [anomalous]);
 
   // Reaching the panel means standing in the car, so the player is looking at it.
   const inCar = camera.position.z > ELEVATOR.frontZ;
@@ -95,19 +141,20 @@ export function Elevator() {
       {/* Interior panel. */}
       <group position={PANEL_POSITION} rotation={[0, -Math.PI / 2, 0]}>
         <mesh geometry={UNIT_BOX} material={MATERIALS.metal} scale={[0.17, 0.56, 0.02]} />
-        {FLOOR_BUTTONS.map((floor, index) => {
-          const served = isServed(floor, ELEVATOR_CONFIG);
-          return (
-            <PanelButton
-              key={floor}
-              position={[0, 0.22 - index * 0.072, 0.014]}
-              prompt={served ? `Floor ${floor}` : "Out of service"}
-              onPress={() => press(floor)}
-              lit={served && readout === floor}
-              active={served}
-            />
-          );
-        })}
+        {/* Down carries on, up turns back. Which is right depends on what
+            the player saw in the corridor they just walked. */}
+        <PanelButton
+          position={[0, 0.16, 0.014]}
+          prompt={finished ? "Begin again" : "Go down"}
+          onPress={() => press("down")}
+          active
+        />
+        <PanelButton
+          position={[0, 0.02, 0.014]}
+          prompt={finished ? "Begin again" : "Go back up"}
+          onPress={() => press("up")}
+          active
+        />
         <PanelButton
           position={[0, -0.21, 0.014]}
           prompt="Close doors"

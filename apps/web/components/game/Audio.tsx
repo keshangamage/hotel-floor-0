@@ -1,8 +1,9 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import { FOOTSTEPS } from "@/game/data/footsteps.generated";
+import { generateFloor } from "@/game/generation/generateFloor";
 import { audio } from "@/game/systems/audio";
 import { createStepTracker, stepDue, stepWeight } from "@/game/systems/footsteps";
 import { motion } from "@/game/systems/motion";
@@ -10,9 +11,13 @@ import { useGameStore } from "@/store/useGameStore";
 
 /** Below this the player is shuffling against a wall, not walking. */
 const MOVING = 0.35;
+/** How far behind the player the other footsteps land, in metres and seconds. */
+const FOLLOW_DISTANCE = 2.6;
+const FOLLOW_DELAY = 0.34;
 
 // Reused every frame so the loop stays allocation free.
 const forward = new THREE.Vector3();
+const behind = new THREE.Vector3();
 const ear: [number, number, number] = [0, 0, 0];
 const facing: [number, number, number] = [0, 0, 0];
 
@@ -25,11 +30,22 @@ const facing: [number, number, number] = [0, 0, 0];
  */
 export function Audio() {
   const phase = useGameStore((state) => state.phase);
+  const floorNumber = useGameStore((state) => state.floorNumber);
+  const seed = useGameStore((state) => state.seed);
   const camera = useThree((state) => state.camera);
   const steps = useRef(createStepTracker());
 
+  // Some floors are wrong in ways only the ear catches. Regenerating the plan
+  // here is cheap and deterministic, and keeps this out of the store.
+  const anomaly = useMemo(() => generateFloor(floorNumber, seed).anomaly, [floorNumber, seed]);
+  const silent = anomaly?.kind === "silence";
+  const followed = anomaly?.kind === "following";
+
   useEffect(() => {
     if (phase !== "playing") return;
+    // A floor with no room tone at all. The absence is the anomaly, and it
+    // only registers because every other floor has one.
+    if (silent) return;
 
     let tone: { stop: () => void } | null = null;
     let cancelled = false;
@@ -48,7 +64,7 @@ export function Audio() {
       cancelled = true;
       tone?.stop();
     };
-  }, [phase]);
+  }, [phase, silent]);
 
   useFrame(() => {
     if (!audio.running) return;
@@ -67,6 +83,12 @@ export function Audio() {
     if (!motion.grounded || motion.speed < MOVING) return;
     if (!stepDue(steps.current, motion.travelled, motion.gait)) return;
     audio.footstep(stepWeight(motion.gait), steps.current.left);
+
+    // Something walking a step behind, in the player's own footsteps.
+    if (followed) {
+      behind.copy(camera.position).addScaledVector(forward, -FOLLOW_DISTANCE);
+      audio.echoStep(FOLLOW_DELAY, [behind.x, behind.y - 0.9, behind.z]);
+    }
   });
 
   return null;

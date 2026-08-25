@@ -8,7 +8,7 @@ import {
   WINDOW_TOP,
 } from "./dimensions";
 import { PROP_SIZES, type PropId } from "./propSizes.generated";
-import type { BoxSpec, LampSpec, PropSpec, SurfaceKind, SwitchSpec, Vec3 } from "../types";
+import type { BoxSpec, LampSpec, NoteSpec, PropSpec, SurfaceKind, SwitchSpec, Vec3 } from "../types";
 
 /**
  * Rooms are furnished in a local frame:
@@ -162,6 +162,7 @@ const LAYOUT: readonly Placement[] = [
 
 export interface Furnishing {
   readonly boxes: BoxSpec[];
+  readonly notes: NoteSpec[];
   readonly lamps: LampSpec[];
   readonly switches: SwitchSpec[];
   readonly props: PropSpec[];
@@ -258,8 +259,35 @@ export function furnishHotelRoom(
     },
   ];
 
+  /**
+   * The rules, as the hotel would put them.
+   *
+   * The game never explains itself anywhere else, and two unlabelled buttons in
+   * a lift are not a rule. Saying it in the hotel's own voice keeps the telling
+   * inside the fiction.
+   */
+  const notes: NoteSpec[] = [
+    {
+      id: `${roomId}-notice`,
+      // On the desk, where hotel stationery lives.
+      position: localPoint(frame, 2.75, PROP_SIZES.desk[1] + 0.005, 1.05),
+      yaw: worldYaw(frame, 0),
+      title: "Notice to guests",
+      lines: [
+        "The fifth floor is the ground floor.",
+        "",
+        "Should the floor you are on differ in any way",
+        "from this one, return to the lift and go up.",
+        "",
+        "Should it not differ, go down.",
+        "",
+        "The stairs are not in service.",
+      ],
+    },
+  ];
+
   // On the doorway centreline, which the layout keeps clear.
   const spawn = localPoint(frame, 1.3, 0, 0);
 
-  return { boxes, lamps, switches, props, spawn };
+  return { boxes, lamps, switches, props, notes, spawn };
 }

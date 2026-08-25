@@ -1,3 +1,5 @@
+import type { Anomaly } from "./systems/anomaly";
+
 /** Mutable tuple so these drop into R3F position/scale props. */
 export type Vec3 = [number, number, number];
 
@@ -55,6 +57,8 @@ export interface LampSpec {
   readonly kind?: "ceiling" | "bare" | "spot";
   /** Unlit fixtures still render their housing, so they read as broken. */
   readonly lit?: boolean;
+  /** A fixture that will not hold steady. */
+  readonly flicker?: boolean;
   readonly color?: string;
   readonly distance?: number;
   /** Draws a physical fixture around the light. */
@@ -135,9 +139,26 @@ export interface FloorSpec {
   readonly corridorFrom: number;
   readonly corridorTo: number;
   readonly rooms: readonly RoomSpec[];
-  readonly lamps: readonly { readonly z: number; readonly castShadow: boolean; readonly lit: boolean }[];
+  readonly lamps: readonly {
+    readonly z: number;
+    readonly castShadow: boolean;
+    readonly lit: boolean;
+    /** A fixture that cannot make up its mind. */
+    readonly flicker?: boolean;
+  }[];
   /** Room number the player starts inside, or null to start in the lobby. */
   readonly spawnRoom: number | null;
+  /** What is wrong with this floor, or null if nothing is. */
+  readonly anomaly: Anomaly | null;
+}
+
+/** A piece of hotel stationery the player can pick up and read. */
+export interface NoteSpec {
+  readonly id: string;
+  readonly position: Vec3;
+  readonly yaw: number;
+  readonly title: string;
+  readonly lines: readonly string[];
 }
 
 /** Everything needed to build one floor. */
@@ -148,6 +169,7 @@ export interface FloorLayout {
   readonly switches: readonly SwitchSpec[];
   readonly props: readonly PropSpec[];
   readonly paintings: readonly PaintingSpec[];
+  readonly notes: readonly NoteSpec[];
   /** Where the player's feet start. */
   readonly spawn: Vec3;
   /** Initial camera yaw, in radians. */

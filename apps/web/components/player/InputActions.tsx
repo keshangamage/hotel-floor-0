@@ -9,8 +9,16 @@ import { useGameStore } from "@/store/useGameStore";
  */
 export function InputActions() {
   useFrame(() => {
-    const { phase, toggleFlashlight } = useGameStore.getState();
+    const { phase, toggleFlashlight, reading, readNote } = useGameStore.getState();
     if (phase !== "playing") return;
+
+    // A note is put down with the same key that picked it up. Consuming the
+    // press here is what stops the driver seeing it and opening it again.
+    if (reading) {
+      if (input.consumePress("interact")) readNote(null);
+      return;
+    }
+
     if (input.consumePress("flashlight")) toggleFlashlight();
   });
 
