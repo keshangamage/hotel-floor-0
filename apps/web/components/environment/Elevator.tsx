@@ -20,7 +20,7 @@ import {
   stepElevator,
 } from "@/game/systems/elevator";
 import { audio } from "@/game/systems/audio";
-import { REFERENCE_FLOOR } from "@/game/systems/anomaly";
+import { REFERENCE_FLOOR, type Anomaly } from "@/game/systems/anomaly";
 import { DEPTH_TO_WIN, judge, type Call } from "@/game/systems/descent";
 import { useGameStore } from "@/store/useGameStore";
 
@@ -35,7 +35,9 @@ const CAR_LIGHT_COLOR = "#cfe0ff";
 const SOUND_AT: readonly [number, number, number] = [0, 1.2, ELEVATOR.frontZ];
 const PANEL_SIZE: [number, number, number] = [PANEL_WIDTH, ELEVATOR.doorHeight, ELEVATOR.doorThickness];
 
-export function Elevator({ anomalous }: { anomalous: boolean }) {
+export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
+  const anomalous = anomaly !== null;
+  const displayWrong = anomaly?.kind === "display-wrong";
   const camera = useThree((state) => state.camera);
   const setFloorNumber = useGameStore((state) => state.setFloorNumber);
   const startFloor = useGameStore.getState().floorNumber;
@@ -105,9 +107,11 @@ export function Elevator({ anomalous }: { anomalous: boolean }) {
       return;
     }
     const verdict = judge(depth, anomalous, call);
-    recordCall(verdict);
+    // What the floor actually was, so a wrong call can say what was missed
+    // rather than leaving the player to guess whether they imagined it.
+    recordCall(verdict, anomaly?.description ?? null);
     requestFloor(elevator.current, verdict.floor, ELEVATOR_CONFIG);
-  }, [anomalous]);
+  }, [anomalous, anomaly]);
 
   // Reaching the panel means standing in the car, so the player is looking at it.
   const inCar = camera.position.z > ELEVATOR.frontZ;
@@ -129,7 +133,11 @@ export function Elevator({ anomalous }: { anomalous: boolean }) {
 
       {/* Turned to face the corridor. Seen from behind, a 5 reads as a 2. */}
       <group position={DISPLAY_POSITION} rotation={[0, Math.PI, 0]}>
-        <SevenSegment value={String(readout)} />
+        {/* One floor out, and only ever upward: a lift claiming a floor below
+            the one it can reach is a broken prop, while one claiming to be
+            higher than it is is a lift that is lying. The room numbers on the
+            doors are what gives it away. */}
+        <SevenSegment value={String(displayWrong ? readout + 1 : readout)} />
       </group>
 
       {/* Call plate in the lobby, beside the doors. */}

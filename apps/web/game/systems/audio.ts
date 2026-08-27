@@ -71,6 +71,19 @@ export class AudioEngine {
     return context;
   }
 
+  /**
+   * Master level, 0 to 1.
+   *
+   * Ramped rather than set: a gain that jumps clicks, and dragging a slider
+   * would do it on every pixel.
+   */
+  setVolume(level: number): void {
+    const context = this.context;
+    if (!context || !this.master) return;
+    const clamped = Math.max(0, Math.min(1, level));
+    this.master.gain.setTargetAtTime(clamped, context.currentTime, 0.02);
+  }
+
   /** Call from a user gesture, or every sound is silently dropped. */
   async resume(): Promise<void> {
     const context = this.ensure();

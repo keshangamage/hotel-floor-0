@@ -16,12 +16,15 @@ export function Announce() {
 
   if (!lastCall) return null;
   // A correct call speaks for itself: the floor number went down.
-  const text = lastCall.won
-    ? "Floor zero"
-    : lastCall.correct
-      ? null
-      : "You are back on five";
-  if (!text) return null;
+  if (lastCall.correct && !lastCall.won) return null;
+
+  const text = lastCall.won ? "Floor zero" : "You are back on five";
+  // Saying what the floor actually was turns a lost run into something the
+  // player learns from, rather than leaving them unsure whether they missed
+  // an anomaly or invented one.
+  const because = lastCall.won
+    ? null
+    : lastCall.was ?? "There was nothing wrong with that floor";
 
   return (
     <p
@@ -33,6 +36,11 @@ export function Announce() {
       ].join(" ")}
     >
       {text}
+      {because ? (
+        <span className="mt-3 block text-[0.6rem] tracking-[0.3em] text-neutral-600 normal-case">
+          {because}
+        </span>
+      ) : null}
     </p>
   );
 }

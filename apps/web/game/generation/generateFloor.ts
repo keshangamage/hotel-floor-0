@@ -1,6 +1,6 @@
 import { ROOM_DEPTH, ROOM_PITCH, ROOM_WIDTH } from "../data/dimensions";
 import { ELEVATOR } from "../data/elevator";
-import { applyAnomaly, chooseAnomaly, REFERENCE_FLOOR } from "../systems/anomaly";
+import { applyAnomaly, chooseAnomaly, ENDING_FLOOR, REFERENCE_FLOOR } from "../systems/anomaly";
 import { createRandom } from "../systems/random";
 import type { FloorSpec, RoomSpec } from "../types";
 
@@ -27,7 +27,45 @@ export const DEFAULT_SEED = "night-porter";
  * otherwise identical. Anything that differs between floors is an anomaly, put
  * there on purpose and one at a time.
  */
+/**
+ * Floor zero.
+ *
+ * The player never judges this one, because reaching it is the end of the run.
+ * So it is not a hotel floor with something wrong with it. It is what the
+ * hotel was keeping underneath, and it is built to say so: a corridor twice
+ * the length of any other, no doors along it, no numbers, and almost nothing
+ * lit. There is nothing here to compare, which is the point.
+ */
+function groundFloor(seed: string): FloorSpec {
+  const to = ELEVATOR.frontZ;
+  const FIXTURES = 9;
+  const lamps = [];
+  for (let i = 0; i < FIXTURES; i += 1) {
+    lamps.push({
+      z: to - 1 - i * ROOM_PITCH,
+      castShadow: false,
+      // Every fourth, so the corridor is a chain of pools with dark between.
+      lit: i % 4 === 0,
+    });
+  }
+
+  return {
+    floorNumber: ENDING_FLOOR,
+    seed,
+    corridorFrom: to - 1 - (FIXTURES - 1) * ROOM_PITCH - 3.2,
+    corridorTo: to,
+    // No rooms at all, so the walls have no openings and the corridor has
+    // nothing along it.
+    rooms: [],
+    lamps,
+    spawnRoom: null,
+    anomaly: null,
+  };
+}
+
 export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED): FloorSpec {
+  if (floorNumber === ENDING_FLOOR) return groundFloor(seed);
+
   // Nothing about the baseline is random any more. It is the same hotel on
   // every floor, and the anomaly is the only thing that varies.
   const normal = floorNumber === REFERENCE_FLOOR;
@@ -69,15 +107,16 @@ export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED):
     });
   }
 
-  // The same room stands open on every floor. Furnished only on the reference
-  // floor, where it is the player's own.
+  // The same room stands open on every floor, and furnished on every floor.
+  // An empty room is nothing to compare, so five of the six floors had nothing
+  // in them worth walking into.
   const guestRoom = rooms.find((r) => r.number === floorNumber * 100 + 7);
   const openIndex = guestRoom ? rooms.indexOf(guestRoom) : -1;
   if (openIndex >= 0) {
     rooms[openIndex] = {
       ...rooms[openIndex]!,
       door: "unlocked",
-      furnished: normal,
+      furnished: true,
       lit: false,
     };
   }

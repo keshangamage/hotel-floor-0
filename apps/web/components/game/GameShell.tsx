@@ -9,6 +9,7 @@ import { InteractPrompt } from "@/components/ui/InteractPrompt";
 import { NoteOverlay } from "@/components/ui/NoteOverlay";
 import { Overlay } from "@/components/ui/Overlay";
 import { input } from "@/game/systems/input";
+import { useGameStore } from "@/store/useGameStore";
 
 /**
  * Client boundary for the game. WebGL cannot be prerendered, and Next only
@@ -32,6 +33,11 @@ function ShellFallback() {
 export function GameShell() {
   // The keyboard is global, so it attaches once here rather than per component.
   useEffect(() => input.attach(window), []);
+
+  // After mount, so the server's HTML and the first client render agree.
+  useEffect(() => {
+    void useGameStore.persist.rehydrate();
+  }, []);
 
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-black">

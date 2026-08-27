@@ -23,6 +23,13 @@ const CONTROLS = [
 export function Overlay() {
   const phase = useGameStore((state) => state.phase);
   const pausedAt = useGameStore((state) => state.pausedAt);
+  const best = useGameStore((state) => state.best);
+  const finished = useGameStore((state) => state.finished);
+  const depth = useGameStore((state) => state.depth);
+  const volume = useGameStore((state) => state.volume);
+  const sensitivity = useGameStore((state) => state.sensitivity);
+  const setVolume = useGameStore((state) => state.setVolume);
+  const setSensitivity = useGameStore((state) => state.setSensitivity);
   const [armedAt, setArmedAt] = useState(0);
 
   // Armed is derived, and the timer is the only thing that sets state. Setting
@@ -64,6 +71,47 @@ export function Overlay() {
               ? "Click to resume"
               : "Paused"}
         </p>
+
+        {(best > 0 || depth > 0) && (
+          <p className="font-mono text-[0.6rem] uppercase tracking-[0.3em] text-neutral-600">
+            {depth > 0 ? `On floor ${5 - depth} · ` : ""}
+            Deepest floor {5 - best}
+            {finished > 0 ? ` · Reached zero ${finished}×` : ""}
+          </p>
+        )}
+
+        {/* The overlay is the pointer lock target, so a click that lands here
+            would lock the pointer and shut the menu. Stop it at the slider. */}
+        <div
+          className="flex w-64 flex-col gap-3"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {[
+            { label: "Volume", value: volume, set: setVolume, min: 0, max: 1, step: 0.05,
+              read: `${Math.round(volume * 100)}%` },
+            { label: "Look", value: sensitivity, set: setSensitivity, min: 0.3, max: 2.5, step: 0.05,
+              read: `${sensitivity.toFixed(2)}\u00d7` },
+          ].map((row) => (
+            <label key={row.label} className="flex items-center gap-3">
+              <span className="w-14 text-left font-mono text-[0.6rem] uppercase tracking-[0.2em] text-neutral-500">
+                {row.label}
+              </span>
+              <input
+                type="range"
+                min={row.min}
+                max={row.max}
+                step={row.step}
+                value={row.value}
+                onChange={(event) => row.set(Number(event.target.value))}
+                className="h-1 flex-1 cursor-pointer appearance-none rounded bg-neutral-700 accent-neutral-300"
+                disabled={!interactive}
+              />
+              <span className="w-10 text-right font-mono text-[0.6rem] tabular-nums text-neutral-600">
+                {row.read}
+              </span>
+            </label>
+          ))}
+        </div>
 
         <dl className="grid grid-cols-[auto_auto] gap-x-5 gap-y-2 font-mono text-[0.6rem] uppercase tracking-[0.2em] text-neutral-700">
           {CONTROLS.map(([key, label]) => (

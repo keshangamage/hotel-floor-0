@@ -24,6 +24,12 @@ export type AnomalyKind =
   | "twinned"
   | "door-moved"
   | "flicker"
+  | "notice-changed"
+  | "furniture-moved"
+  | "bedside-dark"
+  | "painting-gone"
+  | "painting-changed"
+  | "display-wrong"
   | "silence"
   | "following";
 
@@ -37,6 +43,9 @@ export interface Anomaly {
 
 /** The hotel as it should be. Never anomalous: it is what the rest is judged against. */
 export const REFERENCE_FLOOR = 5;
+
+/** The bottom. Reaching it ends the run, so it is never judged either. */
+export const ENDING_FLOOR = 0;
 
 /** Roughly half the floors are wrong, so neither answer is ever the safe one. */
 export const ANOMALY_CHANCE = 0.5;
@@ -53,20 +62,37 @@ export const ANOMALY_KINDS: readonly AnomalyKind[] = [
   "twinned",
   "door-moved",
   "flicker",
+  "notice-changed",
+  "furniture-moved",
+  "bedside-dark",
+  "painting-gone",
+  "painting-changed",
+  "display-wrong",
   "silence",
   "following",
 ];
 
 /**
- * Anomalies you hear rather than see.
+ * Anomalies carried on the floor rather than built into it.
  *
- * These leave the floor plan alone: nothing is moved or unlocked, so the
- * corridor measures identical and only the sound of it is wrong. The audio
- * layer reads them off the floor and the geometry never knows.
+ * These leave the plan alone: nothing is moved or unlocked, so the corridor
+ * measures identical and only its sound or its wording is wrong. Whatever
+ * draws or plays them reads them off the floor, and the geometry never knows.
  */
-export const SENSORY: ReadonlySet<AnomalyKind> = new Set<AnomalyKind>(["silence", "following"]);
+export const CARRIED: ReadonlySet<AnomalyKind> = new Set<AnomalyKind>([
+  "silence",
+  "following",
+  "notice-changed",
+  // Dressing, which the plan does not describe: the room's and the corridor's.
+  "furniture-moved",
+  "bedside-dark",
+  "painting-gone",
+  "painting-changed",
+  // The lift's own indicator, which the plan does not describe either.
+  "display-wrong",
+]);
 
-export const isSensory = (kind: AnomalyKind): boolean => SENSORY.has(kind);
+export const isCarried = (kind: AnomalyKind): boolean => CARRIED.has(kind);
 
 /**
  * Picks what is wrong with a floor, or nothing.
@@ -75,7 +101,9 @@ export const isSensory = (kind: AnomalyKind): boolean => SENSORY.has(kind);
  * wrong in the same way, and a saved game can be rebuilt from two numbers.
  */
 export function chooseAnomaly(floorNumber: number, seed: string): Anomaly | null {
-  if (floorNumber === REFERENCE_FLOOR) return null;
+  // Neither end of the descent is ever judged: one is the reference and the
+  // other ends the run on arrival.
+  if (floorNumber === REFERENCE_FLOOR || floorNumber === ENDING_FLOOR) return null;
 
   const random = createRandom(`${seed}:${floorNumber}:anomaly`);
   if (!random.chance(ANOMALY_CHANCE)) return null;
@@ -96,6 +124,12 @@ function describe(kind: AnomalyKind): string {
     case "twinned": return "two doors carry the same number";
     case "door-moved": return "a door is not where it was";
     case "flicker": return "a fixture will not hold steady";
+    case "notice-changed": return "the notice in the room does not say what it said";
+    case "furniture-moved": return "something in the room has been moved";
+    case "bedside-dark": return "the bedside lamp is out";
+    case "painting-gone": return "a picture has come off the corridor wall";
+    case "painting-changed": return "a picture is not the one that hung there";
+    case "display-wrong": return "the lift says it is on a different floor";
     case "silence": return "the floor makes no sound at all";
     case "following": return "something is walking a step behind";
   }
@@ -162,10 +196,16 @@ export function applyAnomaly(spec: FloorSpec, anomaly: Anomaly | null): FloorSpe
       if (at !== undefined) lamps[at] = { ...lamps[at]!, lit: false };
       break;
     }
-    // Sensory kinds change nothing about the plan. They are carried on the
-    // floor and read by the audio layer.
+    // These change nothing about the plan. They are carried on the floor and
+    // read by whatever draws or plays them.
     case "silence":
     case "following":
+    case "notice-changed":
+    case "furniture-moved":
+    case "bedside-dark":
+    case "painting-gone":
+    case "painting-changed":
+    case "display-wrong":
       return { ...spec, anomaly };
 
     case "corridor-long":

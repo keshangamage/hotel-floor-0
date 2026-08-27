@@ -79,6 +79,20 @@ function corridorPaintings(spec: FloorSpec): PaintingSpec[] {
       });
     }
   }
+
+  // Pictures are dressing rather than plan, so a floor that has lost one or
+  // swapped one measures identical to the floor above it.
+  const anomaly = spec.anomaly;
+  if (!anomaly || out.length === 0) return out;
+  const at = anomaly.target % out.length;
+
+  if (anomaly.kind === "painting-gone") return out.filter((_, i) => i !== at);
+  if (anomaly.kind === "painting-changed") {
+    // Next one along, so it is a picture that belongs in this hotel rather
+    // than something obviously imported.
+    const hung = out[at]!;
+    return out.map((p, i) => (i === at ? { ...p, art: hung.art + 1 } : p));
+  }
   return out;
 }
 
@@ -178,7 +192,10 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
 
     if (!spec_.furnished) continue;
 
-    const furnishing = furnishHotelRoom(frame, spec_.depth, spec_.width, `room-${spec_.number}`);
+    const furnishing = furnishHotelRoom(
+      frame, spec_.depth, spec_.width, `room-${spec_.number}`,
+      spec.anomaly?.kind,
+    );
     boxes.push(...furnishing.boxes);
     extraLamps.push(...furnishing.lamps);
     switches.push(...furnishing.switches);

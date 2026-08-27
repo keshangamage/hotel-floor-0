@@ -13,6 +13,7 @@ const POINTER_SPEED = 0.8;
  */
 export function LookControls() {
   const setPhase = useGameStore((state) => state.setPhase);
+  const sensitivity = useGameStore((state) => state.sensitivity);
 
   const onLock = useCallback(() => setPhase("playing"), [setPhase]);
   const onUnlock = useCallback(() => {
@@ -25,7 +26,7 @@ export function LookControls() {
     <PointerLockControls
       // Without a selector drei locks on any click anywhere in the document.
       selector="#pointer-lock-target"
-      pointerSpeed={POINTER_SPEED}
+      pointerSpeed={POINTER_SPEED * sensitivity}
       onLock={onLock}
       onUnlock={onUnlock}
     />

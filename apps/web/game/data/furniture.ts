@@ -1,3 +1,4 @@
+import type { AnomalyKind } from "../systems/anomaly";
 import { boxFromBounds } from "./builders";
 import {
   CEILING_HEIGHT,
@@ -175,12 +176,20 @@ export function furnishHotelRoom(
   depth: number,
   _width: number,
   roomId: string,
+  /** What is wrong with this floor, for the anomalies the room carries. */
+  wrong?: AnomalyKind,
 ): Furnishing {
+  const alteredNotice = wrong === "notice-changed";
   const boxes: BoxSpec[] = [];
   const props: PropSpec[] = [];
 
   for (const item of LAYOUT) {
-    const { prop, collider } = place(frame, roomId, item);
+    // The chair belongs tucked under the desk. Out in the floor, turned to
+    // face the door, is the same room saying something different.
+    const placed = wrong === "furniture-moved" && item.id === "chair"
+      ? { ...item, depth: 1.75, across: -0.55, yaw: 180 as const }
+      : item;
+    const { prop, collider } = place(frame, roomId, placed);
     props.push(prop);
     if (collider) boxes.push(collider);
   }
@@ -211,6 +220,9 @@ export function furnishHotelRoom(
       position: localPoint(frame, NIGHTSTAND.depth, PROP_SIZES.nightstand[1] + 0.285, NIGHTSTAND.across),
       fixture: "table",
       castShadow: false,
+      // Out, but still standing there. The fixture is what makes it read as
+      // switched off rather than missing.
+      lit: wrong !== "bedside-dark",
       intensity: 2.8,
       kind: "bare",
       color: "#ffb877",
@@ -273,16 +285,30 @@ export function furnishHotelRoom(
       position: localPoint(frame, 2.75, PROP_SIZES.desk[1] + 0.005, 1.05),
       yaw: worldYaw(frame, 0),
       title: "Notice to guests",
-      lines: [
-        "The fifth floor is the ground floor.",
-        "",
-        "Should the floor you are on differ in any way",
-        "from this one, return to the lift and go up.",
-        "",
-        "Should it not differ, go down.",
-        "",
-        "The stairs are not in service.",
-      ],
+      // The altered notice swaps the two instructions. A player who reads it
+      // and obeys is led the wrong way, but a player who remembers the one in
+      // their own room sees it for what it is, which is the whole game.
+      lines: alteredNotice
+        ? [
+            "The fifth floor is the ground floor.",
+            "",
+            "Should the floor you are on differ in any way",
+            "from this one, continue down.",
+            "",
+            "Should it not differ, return to the lift and go up.",
+            "",
+            "The stairs are not in service.",
+          ]
+        : [
+            "The fifth floor is the ground floor.",
+            "",
+            "Should the floor you are on differ in any way",
+            "from this one, return to the lift and go up.",
+            "",
+            "Should it not differ, go down.",
+            "",
+            "The stairs are not in service.",
+          ],
     },
   ];
 

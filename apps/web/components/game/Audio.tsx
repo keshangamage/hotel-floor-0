@@ -38,6 +38,7 @@ export function Audio() {
   // Some floors are wrong in ways only the ear catches. Regenerating the plan
   // here is cheap and deterministic, and keeps this out of the store.
   const anomaly = useMemo(() => generateFloor(floorNumber, seed).anomaly, [floorNumber, seed]);
+  const volume = useGameStore((state) => state.volume);
   const silent = anomaly?.kind === "silence";
   const followed = anomaly?.kind === "following";
 
@@ -65,6 +66,12 @@ export function Audio() {
       tone?.stop();
     };
   }, [phase, silent]);
+
+  // Applied here rather than in the slider, so it also lands once the context
+  // has actually started.
+  useEffect(() => {
+    audio.setVolume(volume);
+  }, [volume, phase]);
 
   useFrame(() => {
     if (!audio.running) return;

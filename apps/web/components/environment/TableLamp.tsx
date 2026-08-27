@@ -15,7 +15,7 @@ const STEM_HEIGHT = 0.2;
  * The shade is emissive and double sided, so it glows from the bulb inside
  * rather than reading as a dark box next to a mysteriously lit room.
  */
-export function TableLamp({ spec }: { spec: LampSpec }) {
+export function TableLamp({ spec, lit = true }: { spec: LampSpec; lit?: boolean }) {
   const shade = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -23,11 +23,11 @@ export function TableLamp({ spec }: { spec: LampSpec }) {
         // emissive on top of that lighting blows the shade out to pure white.
         color: "#2a2118",
         emissive: new THREE.Color(spec.color ?? "#ffb877"),
-        emissiveIntensity: 0.75,
+        emissiveIntensity: lit ? 0.75 : 0,
         roughness: 0.95,
         side: THREE.DoubleSide,
       }),
-    [spec.color],
+    [spec.color, lit],
   );
 
   // The light sits at the shade's centre; the fixture hangs below it.

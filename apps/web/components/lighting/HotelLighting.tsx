@@ -20,24 +20,40 @@ export function HotelLighting({ layout }: { layout: FloorLayout }) {
     <>
       <ambientLight intensity={AMBIENT_INTENSITY} />
       <hemisphereLight args={["#4a4238", "#14100e", HEMISPHERE_INTENSITY]} />
-      {layout.lamps.map((spec, index) =>
-        spec.id && lightsOff[spec.id] ? null : spec.kind === "spot" ? (
-          <RoomSpot key={index} spec={spec} />
-        ) : spec.kind === "bare" ? (
-          <group key={index}>
-            {spec.fixture === "table" ? <TableLamp spec={spec} /> : null}
-            <pointLight
-              position={spec.position}
-              color={spec.color}
-              intensity={spec.intensity}
-              distance={spec.distance ?? 6}
-              decay={2}
+      {layout.lamps.map((spec, index) => {
+        // Switched off means dark, not gone. Returning null here took the
+        // fixture with it, so flipping the switch made the lamp itself vanish
+        // off the nightstand.
+        const lit = spec.lit !== false && !(spec.id && lightsOff[spec.id]);
+
+        if (spec.kind === "spot") {
+          return (
+            <RoomSpot
+              key={index}
+              spec={lit ? spec : { ...spec, intensity: 0, castShadow: false }}
             />
-          </group>
-        ) : (
-          <CeilingLamp key={index} spec={spec} />
-        ),
-      )}
+          );
+        }
+
+        if (spec.kind === "bare") {
+          return (
+            <group key={index}>
+              {spec.fixture === "table" ? <TableLamp spec={spec} lit={lit} /> : null}
+              {lit ? (
+                <pointLight
+                  position={spec.position}
+                  color={spec.color}
+                  intensity={spec.intensity}
+                  distance={spec.distance ?? 6}
+                  decay={2}
+                />
+              ) : null}
+            </group>
+          );
+        }
+
+        return <CeilingLamp key={index} spec={lit ? spec : { ...spec, lit: false }} />;
+      })}
     </>
   );
 }

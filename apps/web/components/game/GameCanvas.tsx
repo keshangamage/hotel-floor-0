@@ -51,7 +51,7 @@ function Scene() {
             colliders are already positioned when movement resolves. */}
         <Doors layout={layout} />
         <RoomSigns layout={layout} />
-        <Elevator anomalous={spec.anomaly !== null} />
+        <Elevator anomaly={spec.anomaly} />
         <Switches layout={layout} />
         <InputActions />
         <Player layout={layout} />
