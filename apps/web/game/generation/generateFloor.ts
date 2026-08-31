@@ -7,8 +7,16 @@ import type { FloorSpec, RoomSpec } from "../types";
 /** Rooms per side. Eight rooms is a believable hotel floor. */
 const ROOMS_PER_SIDE = 4;
 
-/** Empty corridor beyond the last room. */
-const TAIL = 2.3;
+/**
+ * Empty corridor beyond the last room.
+ *
+ * Drawn from the seed, so one hotel's corridor runs longer than another's.
+ * Safe to vary because it is drawn once per hotel rather than per floor: the
+ * comparison only requires that the floors of a single run agree with each
+ * other.
+ */
+const TAIL_MIN = 1.8;
+const TAIL_MAX = 5.4;
 
 /**
  * Chosen, not arbitrary: with half of floors anomalous, roughly one seed in
@@ -66,8 +74,10 @@ function groundFloor(seed: string): FloorSpec {
 export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED): FloorSpec {
   if (floorNumber === ENDING_FLOOR) return groundFloor(seed);
 
-  // Nothing about the baseline is random any more. It is the same hotel on
-  // every floor, and the anomaly is the only thing that varies.
+  // One draw per hotel, not per floor. Every floor of a run shares this, so
+  // the player still has a fixed thing to compare against, but two runs are
+  // two different buildings rather than the same one with different faults.
+  const hotel = createRandom(`${seed}:hotel`);
   const normal = floorNumber === REFERENCE_FLOOR;
 
   // Doors are placed relative to the elevator, so the lobby is identical on
@@ -81,7 +91,7 @@ export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED):
   }
 
   const lastDoor = Math.min(...leftDoors, ...rightDoors);
-  const tail = TAIL;
+  const tail = hotel.float(TAIL_MIN, TAIL_MAX);
   const corridorFrom = lastDoor - ROOM_WIDTH / 2 - tail;
 
   // Odd rooms on the -X wall, even on +X, numbered from the elevator inward.
@@ -109,9 +119,11 @@ export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED):
 
   // The same room stands open on every floor, and furnished on every floor.
   // An empty room is nothing to compare, so five of the six floors had nothing
-  // in them worth walking into.
-  const guestRoom = rooms.find((r) => r.number === floorNumber * 100 + 7);
-  const openIndex = guestRoom ? rooms.indexOf(guestRoom) : -1;
+  // in them worth walking into. Which room it is comes from the hotel, so a
+  // player cannot arrive already knowing where to go.
+  // int is inclusive of its upper bound, so this is the last index, not the count.
+  const openIndex = hotel.int(0, rooms.length - 1);
+  const guestRoom = rooms[openIndex];
   if (openIndex >= 0) {
     rooms[openIndex] = {
       ...rooms[openIndex]!,
@@ -153,7 +165,7 @@ export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED):
     corridorTo: to,
     rooms,
     lamps: withState,
-    spawnRoom: normal ? floorNumber * 100 + 7 : null,
+    spawnRoom: normal && guestRoom ? guestRoom.number : null,
     anomaly: null,
   };
 

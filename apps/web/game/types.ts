@@ -78,6 +78,15 @@ export interface DoorSpec {
   readonly locked: boolean;
   /** Room number, for prompts and signage. */
   readonly label?: string;
+  /**
+   * Hangs open from the start.
+   *
+   * "Unlocked" only means a door can be opened, so a corridor of shut doors
+   * looked identical whichever one was unlocked. The player had to aim at each
+   * of eight in turn to find out, and the anomalies that turn a door on or off
+   * were invisible until they did.
+   */
+  readonly startsOpen?: boolean;
 }
 
 /** An instance of a prop from the imported model library. */

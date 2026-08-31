@@ -15,10 +15,11 @@ console.log(`boxes: ${L.boxes.length} ${JSON.stringify(counts)}`);
 console.log(`colliders: ${C.length} | lights: ${L.lamps.length}\n`);
 
 check("no degenerate or NaN boxes", L.boxes.every(b => b.size.every(s => Number.isFinite(s) && s > 1e-6)));
-// The furniture and the window unit are imported meshes now. What stays
-// hand-built is the room's woodwork and the single pane of glazing.
+// The furniture and window units are imported meshes now. What stays hand
+// built is the room's woodwork and two panes of glazing: the guest room's
+// window and the one at the corridor's dead end.
 check("hand-built furniture kinds are present",
-  (counts.wood ?? 0) > 0 && (counts.glass ?? 0) === 1,
+  (counts.wood ?? 0) > 0 && (counts.glass ?? 0) === 2,
   `wood ${counts.wood ?? 0}, glass ${counts.glass ?? 0}`);
 
 // Nothing may be left inside the ceiling or below the floor.
@@ -74,8 +75,9 @@ check("the room has light below knee height",
   L.lamps.filter(l => l.kind === "bare").map(l => `y=${l.position[1].toFixed(2)}`).join(", "));
 check("507 has no ceiling downlight", FLOOR_5.rooms.find(r => r.number === 507)?.lit === false);
 
-// Light budget: every light costs per fragment, so this is worth watching.
-check("total scene lights stay in budget", L.lamps.length <= 10, `${L.lamps.length} lamps + 1 elevator`);
+// The light budget lives in budget.test.ts now: this floor is the cheapest
+// case, and the number that matters is the worst one across every hotel,
+// floor and anomaly.
 
 // Determinism still holds with furniture in the mix.
 import("../game/data/floor").then((m) => {

@@ -5,7 +5,7 @@ import {
 import { buildFloor } from "../game/data/floor";
 import { createColliderSet } from "../game/systems/colliders";
 import { moveAndCollide } from "../game/systems/collision";
-import { PLAYER_HEIGHT } from "../game/data/dimensions";
+import { CORRIDOR_HALF_WIDTH, PLAYER_HEIGHT } from "../game/data/dimensions";
 import type { FloorSpec } from "../game/types";
 
 let fail = 0;
@@ -490,6 +490,120 @@ check("the reference floor is never anomalous",
   check("a door with no number draws no plate",
     /if \(!door\.label\) return null/.test(
       readFileSync("apps/web/components/environment/RoomSign.tsx", "utf8")));
+}
+
+// Every kind has to reach the player somehow.
+//
+// A kind added to the pool but wired to nothing produces a floor identical to
+// a clean one, and the game then asks the player to say it changed. Nothing
+// else would catch that: the plan is allowed to be identical, so long as
+// something else carries it.
+{
+  const { readFileSync, readdirSync } = await import("node:fs");
+  // Anything that draws or plays: a kind may be perceived through the lift's
+  // indicator or the audio layer as readily as through the floor plan.
+  const consumers = ["apps/web/components/game", "apps/web/components/environment",
+    "apps/web/components/lighting", "apps/web/game/data"]
+    .flatMap((dir) => readdirSync(dir).map((f) => `${dir}/${f}`))
+    .filter((f) => f.endsWith(".ts") || f.endsWith(".tsx"))
+    .map((f) => readFileSync(f, "utf8"))
+    .join("\n");
+  const clean = JSON.stringify(buildFloor(generateFloor(REFERENCE_FLOOR)));
+
+  const unreachable: string[] = [];
+  for (const kind of ANOMALY_KINDS) {
+    // Some kinds land on one of several targets, so try a few.
+    const changesTheFloor = [0, 1, 2, 3, 4, 5].some((target) =>
+      JSON.stringify(buildFloor(applyAnomaly(generateFloor(REFERENCE_FLOOR),
+        { kind, target, description: kind }))) !== clean);
+    // Or something names it and turns it into a sound or a sight.
+    const consumed = consumers.includes(`"${kind}"`);
+    if (!changesTheFloor && !consumed) unreachable.push(kind);
+  }
+
+  check("every anomaly reaches the player",
+    unreachable.length === 0,
+    unreachable.length ? `wired to nothing: ${unreachable.join(", ")}` : `all ${ANOMALY_KINDS.length}`);
+}
+
+// Light from a room the player cannot enter has to reach the corridor, or it
+// is an anomaly they are asked to see through a closed door and a solid wall.
+{
+  let invisible = 0;
+  let cases = 0;
+  let nearestToADoor = Infinity;
+
+  for (let i = 0; i < 150; i += 1) {
+    const base = generateFloor(4, `lit-${i}`);
+    const before = buildFloor(base).lamps.length;
+    for (let target = 0; target < 8; target += 1) {
+      const spec = applyAnomaly(base, { kind: "room-lit", target, description: "lit" });
+      const layout = buildFloor(spec);
+      cases += 1;
+      if (layout.lamps.length === before) { invisible += 1; continue; }
+
+      // Something has to sit out in the corridor, close to a doorway.
+      const room = spec.rooms.find((r) => r.lit && !r.furnished);
+      if (!room) continue;
+      const spill = layout.lamps.filter((l) => Math.abs(l.position[0]) <= CORRIDOR_HALF_WIDTH);
+      for (const lamp of spill) {
+        nearestToADoor = Math.min(nearestToADoor, Math.abs(lamp.position[2] - room.doorZ));
+      }
+    }
+  }
+
+  check("a lit room always lights something", invisible === 0,
+    `${invisible} of ${cases} lit nothing at all`);
+  check("and it shows at the door", nearestToADoor < 0.1,
+    `nearest spill ${nearestToADoor.toFixed(2)}m from the doorway`);
+
+  // The room's own lamp must not wash the corridor through the wall.
+  const spec = applyAnomaly(generateFloor(4), { kind: "room-lit", target: 0, description: "lit" });
+  const room = spec.rooms.find((r) => r.lit && !r.furnished);
+  const inside = buildFloor(spec).lamps.find((l) =>
+    room && Math.abs(l.position[0]) > CORRIDOR_HALF_WIDTH && Math.abs(l.position[2] - room.doorZ) < 3);
+  if (inside) {
+    const toCorridor = Math.abs(inside.position[0]) - CORRIDOR_HALF_WIDTH;
+    check("the room's own lamp stays in the room",
+      (inside.distance ?? Infinity) < toCorridor,
+      `reaches ${(inside.distance ?? Infinity).toFixed(1)}m, corridor is ${toCorridor.toFixed(1)}m away`);
+  }
+}
+
+// "Unlocked" only ever meant a door could be opened, so every corridor looked
+// the same and the two door anomalies were invisible until the player aimed at
+// each of eight doors in turn. The open one now stands open.
+{
+  const standing = (spec: FloorSpec) => buildFloor(spec).doors.filter((d) => d.startsOpen).length;
+  // The reference floor, which is never anomalous. Floor 4 on this seed is
+  // already door-shut, so building on it measured two anomalies at once.
+  const base = generateFloor(REFERENCE_FLOOR);
+
+  check("one door stands open on a floor with nothing wrong", standing(base) === 1,
+    `${standing(base)} open`);
+
+  const opened = applyAnomaly(base, { kind: "door-open", target: 0, description: "x" });
+  check("a door that should be locked standing open makes two", standing(opened) === 2,
+    `${standing(opened)} open`);
+
+  const shut = applyAnomaly(base, { kind: "door-shut", target: 0, description: "x" });
+  check("and the open one being locked leaves none", standing(shut) === 0,
+    `${standing(shut)} open`);
+
+  // The descriptions have to match what the player sees, which is what went
+  // wrong with the lift's up and down.
+  const description = (kind: "door-open" | "door-shut") =>
+    applyAnomaly(base, { kind, target: 0, description: "" }).anomaly?.kind === kind;
+  check("both kinds still describe themselves", description("door-open") && description("door-shut"));
+
+  // Across hotels, since which room is open is drawn from the seed.
+  const wrong: string[] = [];
+  for (let i = 0; i < 200; i += 1) {
+    const spec = generateFloor(5, `door-${i}`);
+    if (standing(spec) !== 1) wrong.push(`door-${i}: ${standing(spec)}`);
+  }
+  check("every hotel shows exactly one open door", wrong.length === 0,
+    wrong.slice(0, 3).join(", ") || "200 hotels");
 }
 
 console.log("\nfloors this seed:");

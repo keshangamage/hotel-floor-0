@@ -211,7 +211,11 @@ export function applyAnomaly(spec: FloorSpec, anomaly: Anomaly | null): FloorSpe
       break;
     }
     case "room-lit": {
-      const dark = rooms.map((r, i) => (r.lit ? -1 : i)).filter((i) => i >= 0);
+      // Only a room that will actually be given a lamp. A furnished room
+      // lights itself from its own fixtures, so choosing one here changed the
+      // plan and lit nothing, and the floor read as clean while the game
+      // insisted it was not.
+      const dark = rooms.map((r, i) => (r.lit || r.furnished ? -1 : i)).filter((i) => i >= 0);
       const at = dark[pickIndex(dark.length)];
       if (at !== undefined) rooms[at] = { ...rooms[at]!, lit: true };
       break;

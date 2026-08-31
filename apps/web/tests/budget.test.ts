@@ -113,5 +113,40 @@ for (const floor of [5, 4, 0]) {
     unused.length === 0, unused.length ? `never drawn: ${unused.join(", ")}` : `all ${ids.length}`);
 }
 
+// Lights are the expensive thing in a scene like this. Every one of them costs
+// on every fragment whether or not it reaches anything, and three.js rebuilds
+// its shaders when the count changes, which is a visible hitch between floors.
+//
+// The old check looked at one floor of one hotel with no anomaly, which is the
+// cheapest case there is.
+{
+  const { generateFloor } = await import("../game/generation/generateFloor");
+  const { buildFloor } = await import("../game/data/floor");
+  const { ANOMALY_KINDS, applyAnomaly } = await import("../game/systems/anomaly");
+
+  let worst = 0;
+  let worstCase = "";
+  const counts = new Set<number>();
+  for (let i = 0; i < 40; i += 1) {
+    for (const floor of [5, 4, 3, 2, 1, 0]) {
+      for (const kind of [...ANOMALY_KINDS, null]) {
+        const base = generateFloor(floor, `budget-${i}`);
+        const spec = kind ? applyAnomaly(base, { kind, target: i, description: "" }) : base;
+        const n = buildFloor(spec).lamps.length;
+        counts.add(n);
+        if (n > worst) { worst = n; worstCase = `floor ${floor}, ${kind ?? "nothing wrong"}`; }
+      }
+    }
+  }
+
+  // Two more are added at runtime: the player's torch and the car's light.
+  const RUNTIME = 2;
+  check("the worst floor stays inside the light budget", worst + RUNTIME <= 18,
+    `${worst} + ${RUNTIME} at ${worstCase}`);
+  // A spread this wide means a shader rebuild on most floor changes. Worth
+  // knowing rather than asserting away: it is the cost of lighting per floor.
+  console.log(`      light counts seen: ${[...counts].sort((a, b) => a - b).join(", ")}`);
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

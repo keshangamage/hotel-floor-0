@@ -17,8 +17,8 @@ const SWING_TIME = 0.9;
 export function HingedDoor({ spec }: { spec: DoorSpec }) {
   const pivot = useRef<THREE.Group>(null);
   const collider = useDynamicCollider();
-  const progress = useRef(0);
-  const [open, setOpen] = useState(false);
+  const progress = useRef(spec.startsOpen ? 1 : 0);
+  const [open, setOpen] = useState(spec.startsOpen ?? false);
 
   // Roughly the middle of the leaf, at handle height. The hinge alone would put
   // a corridor door's creak half a metre into the wall.

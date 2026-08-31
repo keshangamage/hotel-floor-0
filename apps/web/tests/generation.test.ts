@@ -49,9 +49,14 @@ const f5 = generateFloor(5, DEFAULT_SEED);
 check("floor 5 has eight rooms", f5.rooms.length === 8);
 check("floor 5 is numbered 501-508",
   f5.rooms.map(r => r.number).sort((x,y)=>x-y).join() === "501,502,503,504,505,506,507,508");
-check("floor 5 starts the player in 507", f5.spawnRoom === 507);
-check("507 is unlocked and furnished", (() => {
-  const r = f5.rooms.find(x => x.number === 507)!;
+// Which room stands open is drawn from the seed now, so this checks the
+// relationship rather than the number: the player wakes in whichever room the
+// hotel left open.
+check("floor 5 starts the player in the room it left open",
+  f5.spawnRoom === f5.rooms.find((r) => r.door === "unlocked")?.number,
+  `${f5.spawnRoom}`);
+check("that room is unlocked and furnished", (() => {
+  const r = f5.rooms.find(x => x.number === f5.spawnRoom)!;
   return r.door === "unlocked" && r.furnished === true;
 })());
 check("only one door is unlocked on floor 5",
@@ -98,8 +103,10 @@ check("its corridor runs longer than any other",
 check("and most of it is unlit",
   f0.lamps.filter((l) => l.lit).length * 2 < f0.lamps.length,
   `${f0.lamps.filter((l) => l.lit).length} of ${f0.lamps.length} lit`);
-check("floor 5 keeps its designed corridor length",
-  Math.abs(f5.corridorFrom + 10) < 1e-9, `${f5.corridorFrom.toFixed(2)}`);
+// The tail is drawn per hotel, so this checks the range rather than a number.
+check("floor 5's corridor is within the designed range",
+  f5.corridorTo - f5.corridorFrom > 18 && f5.corridorTo - f5.corridorFrom < 24,
+  `${(f5.corridorTo - f5.corridorFrom).toFixed(1)}m`);
 
 // "The corridor seems slightly longer than expected" only lands if it is never
 // shorter. With a plain random tail it came out shorter on most seeds.
@@ -199,6 +206,37 @@ for (const n of [0, 5, -1, -2, -3, -4]) {
   if (Math.abs(p.x) > CORRIDOR_HALF_WIDTH) check(`floor ${n}: stayed in the corridor`, false);
 }
 check("every generated floor is standable and walkable", true);
+
+// Which room stands open is drawn from the seed, so it has to land on a real
+// room in every hotel. An index one past the end leaves the floor sealed, and
+// the player with nowhere to go and nothing to compare.
+{
+  const sealed: string[] = [];
+  const several = new Set<number>();
+  for (let i = 0; i < 400; i += 1) {
+    const seed = `hotel-${i}`;
+    const spec = generateFloor(5, seed);
+    const open = spec.rooms.filter((r) => r.door === "unlocked");
+    if (open.length !== 1) sealed.push(`${seed}: ${open.length} open`);
+    if (open[0]) several.add(open[0].number);
+    // And the room the player wakes in has to be that one.
+    if (spec.spawnRoom !== open[0]?.number) sealed.push(`${seed}: spawn ${spec.spawnRoom}`);
+  }
+  check("every hotel has exactly one room open, and wakes the player in it",
+    sealed.length === 0, sealed.slice(0, 3).join("; ") || "400 hotels");
+  check("and it is not always the same room", several.size >= 6,
+    `${several.size} different rooms across 400 hotels`);
+}
+
+// Two hotels should be two buildings, not the same one with different faults.
+{
+  const shapes = new Set<string>();
+  for (let i = 0; i < 200; i += 1) {
+    const spec = generateFloor(5, `shape-${i}`);
+    shapes.add(`${spec.corridorFrom.toFixed(2)}|${spec.rooms.find((r) => r.door === "unlocked")?.number}`);
+  }
+  check("hotels differ from one another", shapes.size > 100, `${shapes.size} shapes in 200 seeds`);
+}
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

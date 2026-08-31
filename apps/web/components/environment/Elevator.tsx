@@ -97,6 +97,11 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
   }, []);
 
   const finished = useGameStore((state) => state.depth >= DEPTH_TO_WIN);
+  // Nothing to compare the reference floor against: it is the thing every
+  // other floor is judged by. Asking for a verdict here is a question with one
+  // possible answer, which a player can still get wrong and lose the run to
+  // before the game has begun.
+  const reference = useGameStore((state) => state.floorNumber === REFERENCE_FLOOR);
 
   // The only two things the player can say: something was wrong, or it was not.
   const press = useCallback((call: Call) => {
@@ -157,19 +162,33 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
         {/* Both of these take the car down when they are right. They are the
             player's verdict on the corridor they just walked, not a direction,
             and labelling them up and down said the opposite of what happened
-            to the floor number. */}
-        <PanelButton
-          position={[0, 0.16, 0.014]}
-          prompt={finished ? "Begin again" : "Nothing had changed"}
-          onPress={() => press("unchanged")}
-          active
-        />
-        <PanelButton
-          position={[0, 0.02, 0.014]}
-          prompt={finished ? "Begin again" : "Something had changed"}
-          onPress={() => press("changed")}
-          active
-        />
+            to the floor number.
+
+            On the reference floor there is nothing to give a verdict on, so
+            the panel offers the ride and nothing else. */}
+        {reference && !finished ? (
+          <PanelButton
+            position={[0, 0.09, 0.014]}
+            prompt="Go down"
+            onPress={() => press("unchanged")}
+            active
+          />
+        ) : (
+          <>
+            <PanelButton
+              position={[0, 0.16, 0.014]}
+              prompt={finished ? "Begin again" : "Nothing had changed"}
+              onPress={() => press("unchanged")}
+              active
+            />
+            <PanelButton
+              position={[0, 0.02, 0.014]}
+              prompt={finished ? "Begin again" : "Something had changed"}
+              onPress={() => press("changed")}
+              active
+            />
+          </>
+        )}
         <PanelButton
           position={[0, -0.21, 0.014]}
           prompt="Close doors"

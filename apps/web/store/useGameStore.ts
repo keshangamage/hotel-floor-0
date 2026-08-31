@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { DEFAULT_SEED } from "@/game/generation/generateFloor";
-import type { Verdict } from "@/game/systems/descent";
+import { floorAtDepth, type Verdict } from "@/game/systems/descent";
 import type { NoteSpec } from "@/game/types";
 
 export type GamePhase = "menu" | "playing" | "paused";
@@ -132,17 +132,45 @@ export const useGameStore = create<GameState>()(
       /**
        * The run, the tally and the settings.
        *
-       * Phase, the note being held and the queued seed all describe this
-       * moment rather than this run: restoring them would drop the player into
-       * a paused menu holding a piece of paper. floorNumber is safe to keep
-       * because nothing rendered on the server reads it.
+       * Phase and the note being held describe this moment rather than this
+       * run: restoring them would drop the player into a paused menu holding a
+       * piece of paper.
+       *
+       * The queued seed is saved, though. A wrong call queues a fresh hotel
+       * and the car takes a couple of seconds to carry the player back, and a
+       * reload inside that window used to leave them restarting the very
+       * building they had just learned.
        */
+      /**
+       * Depth is the record of progress; the floor is derived from it.
+       *
+       * They move at different moments: depth changes when the player presses,
+       * the floor when the car arrives. A save taken between the two has them
+       * out of step, and restoring both verbatim leaves the player standing on
+       * one floor with the progress of another, skipping a floor on their next
+       * right answer.
+       */
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<GameState>;
+        const depth = saved.depth ?? current.depth;
+        return {
+          ...current,
+          ...saved,
+          depth,
+          floorNumber: floorAtDepth(depth),
+          // A queued hotel is taken up here rather than waiting for an arrival
+          // that will never come, since restoring lands the player at rest.
+          seed: saved.pendingSeed ?? saved.seed ?? current.seed,
+          pendingSeed: null,
+        };
+      },
       partialize: (state) => ({
         seed: state.seed,
         depth: state.depth,
         floorNumber: state.floorNumber,
         best: state.best,
         finished: state.finished,
+        pendingSeed: state.pendingSeed,
         volume: state.volume,
         sensitivity: state.sensitivity,
       }),

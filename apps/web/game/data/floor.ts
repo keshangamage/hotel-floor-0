@@ -1,4 +1,4 @@
-import { room, slab, wallWithOpenings, type Opening } from "./builders";
+import { boxFromBounds, room, slab, wallWithOpenings, type Opening } from "./builders";
 import {
   CEILING_HEIGHT,
   CORRIDOR_HALF_WIDTH,
@@ -8,10 +8,13 @@ import {
   SLAB_THICKNESS,
   WALL_THICKNESS,
   WINDOW_ACROSS,
+  WINDOW_FRAME_BASE,
+  WINDOW_SCALE,
   WINDOW_SILL,
   WINDOW_TOP,
   WINDOW_WIDTH,
 } from "./dimensions";
+import { PROP_SIZES } from "./propSizes.generated";
 import { ENDING_FLOOR } from "../systems/anomaly";
 import { ELEVATOR, buildElevator } from "./elevator";
 import { furnishHotelRoom, type RoomFrame } from "./furniture";
@@ -52,6 +55,9 @@ function doorFor(spec: RoomSpec): DoorSpec {
     closedYaw: 0,
     openYaw: (spec.side * Math.PI) / 2,
     locked: spec.door === "locked",
+    // The room that is open stands open, so the corridor shows at a glance
+    // which one it is, and shows when that has changed.
+    startsOpen: spec.door === "unlocked",
     label: String(spec.number),
   };
 }
@@ -183,8 +189,22 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
       outerFace: from - WALL_THICKNESS,
       span: full,
       height: CEILING_HEIGHT,
+      // A window at the dead end. The tail was blank wall the player walked
+      // toward and turned away from, and it is the stretch the corridor
+      // anomalies lengthen and shorten, so it needed something to measure
+      // against: a landmark that moves is far easier to read than a wall that
+      // is simply further off.
+      openings: [
+        { at: 0, width: WINDOW_WIDTH, height: WINDOW_TOP, recess: 0, leaf: "open", sill: WINDOW_SILL },
+      ],
       trim: true,
     }),
+    // Glazing, so the hole is a window rather than a way out.
+    boxFromBounds("glass", {
+      x: [-WINDOW_WIDTH / 2, WINDOW_WIDTH / 2],
+      y: [WINDOW_SILL, WINDOW_TOP],
+      z: [from - WALL_THICKNESS / 2 - 0.015, from - WALL_THICKNESS / 2 + 0.015],
+    }, false),
   ];
 
   const extraLamps: LampSpec[] = [];
@@ -264,6 +284,22 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
       position: [cx, CEILING_HEIGHT, cz],
       castShadow: false,
       intensity: ROOM_LAMP_INTENSITY,
+      // Kept inside the room. A light with no shadow does not stop at a wall,
+      // so an unbounded one washed the corridor with a glow that came through
+      // solid plaster rather than from the doorway.
+      distance: 2.2,
+    });
+
+    // What the player actually sees: a pool at the foot of that one door, as
+    // if the light were escaping underneath it. The room itself is locked and
+    // never entered, so this is the whole of the anomaly.
+    lamps.push({
+      position: [r.side * (CORRIDOR_HALF_WIDTH - 0.06), 0.16, r.doorZ],
+      castShadow: false,
+      kind: "bare",
+      intensity: 1.6,
+      distance: 2.4,
+      color: "#ffca8a",
     });
   }
 
@@ -273,6 +309,15 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
   const spawn: Vec3 = start
     ? (spawnPoints.get(start.number) ?? roomCentre(start))
     : [0, 0, end - 1.6];
+
+  // The same frame the rooms use, turned to face back down the corridor.
+  props.push({
+    instanceId: "corridor-window",
+    id: "window",
+    position: [0, WINDOW_FRAME_BASE, from - (PROP_SIZES.window[2] * WINDOW_SCALE) / 2],
+    yaw: 0,
+    scale: WINDOW_SCALE,
+  });
 
   return {
     boxes,

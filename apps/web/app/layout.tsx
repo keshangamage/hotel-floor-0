@@ -12,10 +12,26 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const DESCRIPTION =
+  "Walk a hotel corridor and decide whether anything has changed since the last one. "
+  + "Five floors down, one wrong answer costs the run.";
+
 export const metadata: Metadata = {
   title: "Hotel Floor 0",
-  description:
-    "A first-person psychological horror game set in a hotel that should not have a ground floor.",
+  description: DESCRIPTION,
+  // Without these a shared link unfurls blank, which for a game that spreads
+  // by being shared is most of its reach.
+  openGraph: {
+    title: "Hotel Floor 0",
+    description: DESCRIPTION,
+    type: "website",
+    siteName: "Hotel Floor 0",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Hotel Floor 0",
+    description: DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {

@@ -9,6 +9,7 @@ import { InteractPrompt } from "@/components/ui/InteractPrompt";
 import { NoteOverlay } from "@/components/ui/NoteOverlay";
 import { Overlay } from "@/components/ui/Overlay";
 import { input } from "@/game/systems/input";
+import { Unsupported, usePlayable } from "./Unsupported";
 import { useGameStore } from "@/store/useGameStore";
 
 /**
@@ -31,6 +32,7 @@ function ShellFallback() {
 }
 
 export function GameShell() {
+  const playable = usePlayable();
   // The keyboard is global, so it attaches once here rather than per component.
   useEffect(() => input.attach(window), []);
 
@@ -38,6 +40,17 @@ export function GameShell() {
   useEffect(() => {
     void useGameStore.persist.rehydrate();
   }, []);
+
+  // Nothing else mounts on a device that cannot play: no canvas, no ten
+  // megabytes of hotel, no pointer lock target waiting for a click that will
+  // never work.
+  if (!playable) {
+    return (
+      <main className="relative h-dvh w-screen overflow-hidden bg-black">
+        <Unsupported />
+      </main>
+    );
+  }
 
   return (
     <main className="relative h-dvh w-screen overflow-hidden bg-black">

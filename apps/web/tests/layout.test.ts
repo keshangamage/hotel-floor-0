@@ -15,7 +15,9 @@ const room = FLOOR_5.rooms.find((r) => r.furnished)!;
 const set = createColliderSet(L.boxes);
 for (const d of L.doors) {
   const b = emptyCollider();
-  doorFootprint(d, d.label === "507" ? d.openYaw : d.closedYaw, b);
+  // The open room's door is swung wide, the rest shut. Which room that is
+  // comes from the seed now, so hard coding it walled the player in.
+  doorFootprint(d, d.label === String(room.number) ? d.openYaw : d.closedYaw, b);
   set.add(b);
 }
 const C = set.list;
@@ -84,8 +86,12 @@ check("spawn is clear", isClear(spawn, PLAYER_HEIGHT, C),
   `(${L.spawn.map(v => v.toFixed(2)).join(", ")})`);
 
 // And the player must be able to walk out, and reach the window.
+// Toward the corridor, which is whichever way the room faces. Rooms sit on
+// both walls and which one is open now comes from the seed, so a fixed
+// direction walks into the back wall half the time.
 const out: Point3 = { ...spawn };
-for (let i = 0; i < 400; i++) moveAndCollide(out, { x: 0.05, y: -0.05, z: 0 }, PLAYER_HEIGHT, C);
+const toCorridor = -Math.sign(spawn.x) * 0.05;
+for (let i = 0; i < 400; i++) moveAndCollide(out, { x: toCorridor, y: -0.05, z: 0 }, PLAYER_HEIGHT, C);
 check("can walk from the spawn out into the corridor",
   Math.abs(out.x) < CORRIDOR_HALF_WIDTH, `x=${out.x.toFixed(2)}`);
 
@@ -106,7 +112,10 @@ check("hung fixtures clear head height",
 // Both rooms on either wall must furnish identically, not mirrored.
 // The aperture is punched by the floor builder and dressed by the furnisher.
 // They use the same frame, so a convention change cannot separate them again.
-const pane = L.boxes.find((b) => b.kind === "glass")!;
+// Two panes on a floor now: the guest room's, and the one at the corridor's
+// dead end. The room's is the one out past the corridor wall.
+const pane = L.boxes.filter((b) => b.kind === "glass")
+  .find((b) => Math.abs(b.position[0]) > CORRIDOR_HALF_WIDTH)!;
 // The window unit is a separate mesh laid over a hole in the wall, so if it is
 // mistuned the opening shows daylight around its edges.
 {
@@ -278,6 +287,41 @@ check("floor-standing props rest on the floor", floating.length === 0,
   });
   check("every floor's notes say the same thing", differing.length === 0,
     differing.length ? `floors ${differing.join(", ")}` : "identical on all of them");
+}
+
+// The window at the dead end. The tail was blank wall, and it is the stretch
+// the corridor anomalies stretch and shorten, so it needed something to judge
+// the distance against.
+{
+  const glass = L.boxes.filter((b) => b.kind === "glass");
+  const end = glass.find((b) => Math.abs(b.position[0]) <= CORRIDOR_HALF_WIDTH);
+  const frame = L.props.find((p) => p.instanceId === "corridor-window");
+
+  check("the corridor ends in a window", end !== undefined && frame !== undefined);
+
+  if (end && frame) {
+    // At the far end, not somewhere along the way.
+    check("it is at the dead end", Math.abs(end.position[2] - FLOOR_5.corridorFrom) < 0.2,
+      `pane at ${end.position[2].toFixed(1)}, corridor ends ${FLOOR_5.corridorFrom.toFixed(1)}`);
+    check("and centred in the corridor", Math.abs(end.position[0]) < 0.05,
+      `x=${end.position[0].toFixed(2)}`);
+
+    // The frame faces back down the corridor. It faces +Z unturned, and the
+    // player approaches from +Z, so this one wants no turn at all: the same
+    // mistake the other way round would leave it facing into the wall.
+    const normal = Math.cos(frame.yaw);
+    check("the frame faces back down the corridor", normal > 0.95,
+      `${(Math.acos(Math.min(1, normal)) * 180 / Math.PI).toFixed(0)} degrees off`);
+
+    // And it covers the hole it frames.
+    const [w] = PROP_SIZES.window;
+    const half = (w * (frame.scale ?? 1)) / 2;
+    check("the frame covers the opening", half >= end.size[0] / 2,
+      `${half.toFixed(2)}m either side of a ${(end.size[0] / 2).toFixed(2)}m half-opening`);
+  }
+
+  // A hole in the end wall that is not glazed is a way out of the building.
+  check("the opening is glazed", end !== undefined);
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);

@@ -9,7 +9,7 @@ const saved = new Map<string, string>();
 
 const { useGameStore } = await import("../store/useGameStore");
 
-import { judge } from "../game/systems/descent";
+import { DEPTH_TO_WIN, floorAtDepth, judge } from "../game/systems/descent";
 import { generateFloor } from "../game/generation/generateFloor";
 
 let fail = 0;
@@ -131,9 +131,13 @@ const reset = () => useGameStore.setState({ depth: 0, best: 0, finished: 0, pend
   const listed = ["seed", "depth", "floorNumber", "best", "finished"]
     .filter((k) => new RegExp(`${k}: state\\.${k}`).test(block));
   check("the run and the tally are saved", listed.length === 5, listed.join(", "));
+  check("and the hotel queued by a lost run", /pendingSeed: state\.pendingSeed/.test(block));
 
   // Restoring these would drop the player into a paused menu holding a note.
-  const transient = ["phase", "reading", "pendingSeed", "interactPrompt", "lastCall"];
+  // pendingSeed is deliberately not among them: it describes the outcome of
+  // the run rather than the moment, and dropping it let a reload during the
+  // ride back restart the hotel the player had just learned.
+  const transient = ["phase", "reading", "interactPrompt", "lastCall"];
   const leaked = transient.filter((k) => new RegExp(`${k}: state\\.${k}`).test(block));
   check("nothing about the moment is", leaked.length === 0, leaked.join(", ") || "none");
 
@@ -230,6 +234,112 @@ const reset = () => useGameStore.setState({ depth: 0, best: 0, finished: 0, pend
   check("the torch and the flicker are left alone",
     !gated(read("lighting/CeilingLamp.tsx")) && !gated(read("player/Flashlight.tsx")),
     "purely visual, behind an opaque overlay");
+}
+
+// The reference floor is what every other floor is judged against, so asking
+// for a verdict on it is a question with one answer. A player could still get
+// it wrong and lose the run before the game had begun.
+{
+  const { readFileSync } = await import("node:fs");
+  const lift = readFileSync("apps/web/components/environment/Elevator.tsx", "utf8");
+  check("the lift knows when it is on the reference floor",
+    /floorNumber === REFERENCE_FLOOR/.test(lift));
+  check("and offers the ride rather than a verdict there",
+    /reference && !finished \? \(/.test(lift) && /prompt="Go down"/.test(lift));
+
+  // Riding down from it must still count as progress.
+  reset();
+  const verdict = judge(0, false, "unchanged");
+  check("the free ride still goes a floor deeper", verdict.depth === 1 && verdict.correct);
+}
+
+// Depth and the floor move at different moments: depth when the player
+// presses, the floor when the car arrives. A save taken between the two had
+// them out of step, and restoring both verbatim put the player on one floor
+// with the progress of another, skipping a floor on their next right answer.
+{
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("apps/web/store/useGameStore.ts", "utf8");
+  check("a restored save derives the floor from depth",
+    /merge:/.test(source) && /floorNumber: floorAtDepth\(depth\)/.test(source));
+
+  // And the two agree once a journey has finished, which is the state a save
+  // is normally taken in.
+  const drift: string[] = [];
+  for (let depth = 0; depth < DEPTH_TO_WIN; depth += 1) {
+    reset();
+    useGameStore.setState({ depth, floorNumber: floorAtDepth(depth) });
+    const verdict = judge(depth, false, "unchanged");
+    store().recordCall(verdict, null);
+    // The car arrives.
+    store().setFloorNumber(verdict.floor);
+    if (store().floorNumber !== floorAtDepth(store().depth)) {
+      drift.push(`depth ${store().depth} on floor ${store().floorNumber}`);
+    }
+  }
+  check("floor and depth agree once the car has arrived", drift.length === 0,
+    drift.join(", ") || `${DEPTH_TO_WIN} journeys`);
+
+  // Mid journey they deliberately disagree, which is why the restore exists.
+  reset();
+  useGameStore.setState({ depth: 2, floorNumber: 3 });
+  store().recordCall(judge(2, false, "unchanged"), null);
+  check("and disagree in flight, which is the case that needed handling",
+    store().floorNumber !== floorAtDepth(store().depth),
+    `depth ${store().depth} says floor ${floorAtDepth(store().depth)}, still on ${store().floorNumber}`);
+}
+
+// A wrong call queues a fresh hotel and the car takes a couple of seconds to
+// carry the player back. Reloading inside that window used to drop the queue,
+// restarting the very building they had just learned three floors of.
+{
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("apps/web/store/useGameStore.ts", "utf8");
+  check("a queued hotel is taken up on restore",
+    /seed: saved\.pendingSeed \?\? saved\.seed/.test(source),
+    "rather than waiting for an arrival that will never come");
+  check("and the queue is cleared with it", /pendingSeed: null,/.test(source));
+
+  // The queue is only set by losing, so restoring must not disturb a run in
+  // progress.
+  reset();
+  const before = store().seed;
+  store().recordCall(judge(1, false, "unchanged"), null);
+  check("a right call queues nothing to restore", store().pendingSeed === null);
+  store().setFloorNumber(3);
+  check("and leaves the hotel alone", store().seed === before);
+}
+
+// A device that cannot play must be told so, not left looking at a black
+// screen having downloaded ten megabytes of hotel for nothing.
+{
+  const { readFileSync } = await import("node:fs");
+  const gate = readFileSync("apps/web/components/game/Unsupported.tsx", "utf8");
+  const shell = readFileSync("apps/web/components/game/GameShell.tsx", "utf8");
+
+  check("touch devices are detected", /pointer: coarse/.test(gate));
+  check("and so is a browser without pointer lock",
+    /requestPointerLock" in document/.test(gate));
+
+  // Read during render through the external store hook. An effect would set
+  // state on mount, which this codebase's compiler rules refuse, and assuming
+  // the worst on the server would flash the notice at every desktop visitor.
+  check("read without an effect", /useSyncExternalStore/.test(gate));
+  check("and assumed playable on the server", /\(\) => true/.test(gate));
+
+  // The canvas must not mount at all: hiding it with CSS still fetches it.
+  check("the game does not mount on an unplayable device",
+    /if \(!playable\)/.test(shell) && shell.indexOf("if (!playable)") < shell.indexOf("<GameCanvas"),
+    "returns before the canvas");
+}
+
+// A shared link is most of how a game like this travels.
+{
+  const { readFileSync, existsSync } = await import("node:fs");
+  const layout = readFileSync("apps/web/app/layout.tsx", "utf8");
+  check("a shared link carries a title and description",
+    /openGraph:/.test(layout) && /twitter:/.test(layout));
+  check("and an image to unfurl", existsSync("apps/web/app/opengraph-image.tsx"));
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
