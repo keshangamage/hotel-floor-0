@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { NodeIO, getBounds } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import { MeshoptDecoder } from "meshoptimizer";
+import { PROP_SIZES } from "../game/data/propSizes.generated";
 import { FLOOR_5_LAYOUT } from "../game/data/floor";
 import { CORRIDOR_HALF_WIDTH, CEILING_HEIGHT, PLAYER_HEIGHT } from "../game/data/dimensions";
 
@@ -41,14 +42,26 @@ check("instance ids are unique", new Set(ids).size === ids.length);
 // The read above throws on a clash, so reaching here proves it.
 check("prop ids are unique across both libraries", true, `${library.size} props`);
 
-// Colliders are authored by hand, so they must match the real mesh sizes.
-const SIZED = { workbench: [1.95, 0.832, 0.702], armchair: [0.917, 1.809, 1.095] } as const;
-for (const [id, expected] of Object.entries(SIZED)) {
-  const b = library.get(id)!;
-  const actual = [0, 1, 2].map((i) => b.max[i]! - b.min[i]!);
-  const ok = actual.every((v, i) => Math.abs(v - expected[i]!) < 0.01);
-  check(`${id} collider size matches the mesh`, ok,
-    `[${actual.map((v) => v.toFixed(3)).join(", ")}]`);
+/**
+ * The manifest has to agree with the meshes it was measured from.
+ *
+ * Colliders are derived from PROP_SIZES, so a library rebuilt without
+ * regenerating it gives every prop a collider the wrong size, and nothing else
+ * would notice. This used to pin two props' dimensions as literals, which said
+ * nothing about the rest and broke the moment those two were removed.
+ */
+{
+  const drifted: string[] = [];
+  for (const [id, size] of Object.entries(PROP_SIZES)) {
+    const bounds = library.get(id);
+    if (!bounds) { drifted.push(`${id} missing from the library`); continue; }
+    const actual = [0, 1, 2].map((i) => bounds.max[i]! - bounds.min[i]!);
+    if (actual.some((v, i) => Math.abs(v - size[i]!) > 0.01)) {
+      drifted.push(`${id} [${actual.map((v) => v.toFixed(2)).join(", ")}]`);
+    }
+  }
+  check("every prop is measured to match the manifest", drifted.length === 0,
+    drifted.join("; ") || `${Object.keys(PROP_SIZES).length} props`);
 }
 
 // Corridor art is built from primitives now, not an imported frame.
@@ -143,7 +156,11 @@ for (const mesh of doc.getRoot().listMeshes())
     const idx = prim.getIndices();
     tris += idx ? idx.getCount() / 3 : prim.getAttribute("POSITION")!.getCount() / 3;
   }
-check("meshopt geometry decodes to real triangles", tris > 30000, `${Math.round(tris)}`);
+// Guards the decoder, not the library's size: a meshopt file that fails to
+// decode reports zero or a handful, so the number only has to be clearly more
+// than nothing. It was 30000, tuned to a library that carried seven props the
+// game never drew.
+check("meshopt geometry decodes to real triangles", tris > 1000, `${Math.round(tris)}`);
 
 // Corridor art is drawn from primitives, so the only asset dependency is the
 // artwork itself.

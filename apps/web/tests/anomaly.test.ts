@@ -235,7 +235,13 @@ check("the reference floor is never anomalous",
       `${after.lines.length} lines`);
     const text = after.lines.join(" ").toLowerCase();
     check("and still gives an instruction either way",
-      text.includes("up") && text.includes("down"), text.slice(0, 50) + "...");
+      text.includes("differ") && text.includes("not differ"), text.slice(0, 50) + "...");
+    // The point is that it says the opposite, not that it says nonsense: the
+    // guest who obeys it is led wrong, the guest who remembers is not.
+    const before_ = before.lines.join(" ").toLowerCase();
+    check("and says the opposite of the real one",
+      before_.includes("tell the lift so") && text.includes("does not"),
+      "the two instructions are swapped");
     // The point is that it says the opposite, not that it says nonsense.
     const flipped = before.lines.some((line, i) => line !== after.lines[i]);
     check("the instructions are what changed", flipped);
@@ -357,6 +363,133 @@ check("the reference floor is never anomalous",
   const numbers = spec.rooms.map((r) => Math.floor(r.number / 100));
   check("the room numbers still say the real floor",
     numbers.every((n) => n === 4), [...new Set(numbers)].join(", "));
+}
+
+// The only anomaly that happens rather than simply being so, which makes it
+// the only one the player can miss by not being there at the time.
+{
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("apps/web/components/game/Audio.tsx", "utf8");
+
+  // Repeating is what makes it fair: heard once and missed, there would be no
+  // way to walk back and check, and checking is the whole game.
+  check("the knocking repeats", /KNOCK_EVERY/.test(source) && /sinceKnock/.test(source));
+  const every = Number(/const KNOCK_EVERY = ([\d.]+)/.exec(source)?.[1] ?? 0);
+  check("often enough to be caught while walking a corridor",
+    every > 0 && every <= 12, `every ${every}s`);
+
+  // It has to come from one fixed door, or the player cannot place it.
+  check("it comes from a door rather than from nowhere",
+    /room\.side \* CORRIDOR_HALF_WIDTH/.test(source));
+  check("and from the same one all the while they are on the floor",
+    /useMemo\(/.test(source) && /anomaly, floorNumber, seed/.test(source));
+
+  // Behind a locked door: an open one could be walked into and disproved.
+  check("the door it comes from is locked",
+    /door === "locked"/.test(source));
+
+  // Floors have locked doors for it to come from, except the one with none.
+  const shut = generateFloor(4).rooms.filter((r) => r.door === "locked");
+  check("there are locked doors to knock from", shut.length > 0, `${shut.length} of 8`);
+}
+
+// The descent has to teach. A player on the first floor below the reference
+// has walked the hotel once and has nothing to compare against, so the subtle
+// kinds are withheld until they have seen the corridor a few times.
+{
+  const seen = new Map<number, Set<string>>();
+  for (let i = 0; i < 600; i += 1) {
+    for (const floor of FLOORS) {
+      const anomaly = generateFloor(floor, `ramp-${i}`).anomaly;
+      if (!anomaly) continue;
+      if (!seen.has(floor)) seen.set(floor, new Set());
+      seen.get(floor)!.add(anomaly.kind);
+    }
+  }
+
+  const HARDEST: readonly string[] = ["following", "notice-changed", "silence"];
+  const MIDDLING: readonly string[] = ["misnumbered", "twinned", "door-moved",
+    "painting-changed", "furniture-moved", "bedside-dark", "display-wrong", "knocking"];
+
+  const first = seen.get(4) ?? new Set();
+  check("the first floor down has anomalies at all", first.size > 0, `${first.size} kinds`);
+  check("and none of them is one you have to know the hotel to catch",
+    ![...first].some((k) => HARDEST.includes(k) || MIDDLING.includes(k)),
+    [...first].join(", "));
+
+  const second = seen.get(3) ?? new Set();
+  check("the next floor opens up", [...second].some((k) => MIDDLING.includes(k)));
+  check("but still holds the hardest back",
+    ![...second].some((k) => HARDEST.includes(k)), [...second].filter((k) => HARDEST.includes(k)).join(", "));
+
+  const deep = new Set([...(seen.get(2) ?? []), ...(seen.get(1) ?? [])]);
+  check("the deepest floors use everything",
+    HARDEST.every((k) => deep.has(k)), HARDEST.filter((k) => !deep.has(k)).join(", ") || "all of them");
+
+  // Nothing may become unreachable: a kind that never appears is dead content.
+  const everywhere = new Set([...seen.values()].flatMap((set) => [...set]));
+  const never = ANOMALY_KINDS.filter((k) => !everywhere.has(k));
+  check("every kind still appears somewhere", never.length === 0,
+    never.join(", ") || `${everywhere.size} kinds in play`);
+
+  console.log(`      floor 4: ${first.size} kinds, floor 3: ${second.size}, floors 2 and 1: ${deep.size}`);
+}
+
+// Following that stops when the player stops is their own feet, and they will
+// talk themselves out of it. The two steps that land after they have stopped
+// are the entire anomaly, so the wiring for them is worth pinning down.
+{
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("apps/web/components/game/Audio.tsx", "utf8");
+
+  check("stopping is detected as a change, not a state",
+    /wasMoving\.current && !moving/.test(source),
+    "or it would fire every frame the player stands still");
+
+  const trailing = /const TRAILING = \[([^\]]+)\]/.exec(source)?.[1] ?? "";
+  const delays = trailing.split(",").map((n) => Number(n.trim())).filter((n) => n > 0);
+  check("more than one step lands afterwards", delays.length >= 2, `${delays.length}`);
+  check("and they are spaced like a walk, not a stumble",
+    delays.length >= 2 && delays[1]! - delays[0]! > 0.25 && delays[1]! - delays[0]! < 0.9,
+    `${((delays[1] ?? 0) - (delays[0] ?? 0)).toFixed(2)}s apart`);
+  // Behind the player, or it is not following anything.
+  check("they come from behind", /-FOLLOW_DISTANCE/.test(source));
+
+  // Only on the floor that carries it.
+  check("and only when the floor is the one following",
+    /if \(followed && wasMoving/.test(source));
+}
+
+// A door plate that has come off. Obvious enough for the first floor down,
+// which is where the game has the fewest kinds to draw on.
+{
+  const clean = buildFloor(generateFloor(REFERENCE_FLOOR));
+  const gone = buildFloor(applyAnomaly(generateFloor(REFERENCE_FLOOR),
+    { kind: "sign-gone", target: 3, description: "sign" }));
+
+  const labelled = (l: typeof clean) => l.doors.filter((d) => d.label).length;
+  check("every door normally carries a number", labelled(clean) === clean.doors.length,
+    `${labelled(clean)} of ${clean.doors.length}`);
+  check("exactly one loses it", labelled(gone) === labelled(clean) - 1,
+    `${labelled(gone)} of ${gone.doors.length}`);
+
+  // The room keeps its number: only the plate on the wall is gone, so the
+  // door still opens onto the same room and nothing else shifts.
+  const spec = applyAnomaly(generateFloor(REFERENCE_FLOOR),
+    { kind: "sign-gone", target: 3, description: "sign" });
+  check("the room itself keeps its number",
+    JSON.stringify(spec.rooms) === JSON.stringify(generateFloor(REFERENCE_FLOOR).rooms));
+
+  // Nothing else about the corridor may move.
+  check("and the floor plan is untouched",
+    JSON.stringify(clean.boxes) === JSON.stringify(gone.boxes), `${clean.boxes.length} boxes`);
+
+  // A plate with no number on it reads as a broken texture rather than a
+  // missing sign, so the component has to draw nothing at all.
+  const { readFileSync } = await import("node:fs");
+  check("a door with no number draws no plate",
+    /if \(!door\.label\) return null/.test(
+      readFileSync("apps/web/components/environment/RoomSign.tsx", "utf8")));
 }
 
 console.log("\nfloors this seed:");

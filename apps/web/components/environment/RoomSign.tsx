@@ -45,6 +45,9 @@ function numberTexture(text: string): THREE.CanvasTexture {
 
 function Sign({ door }: { door: DoorSpec }) {
   const texture = useMemo(() => numberTexture(door.label ?? ""), [door.label]);
+  // No number, no plate. An empty plaque reads as a texture that failed to
+  // load; bare wall reads as a sign that has come off.
+  if (!door.label) return null;
   // The hinge sits on the low-Z jamb, so the latch side is the far one.
   const side = door.hinge[0] > 0 ? 1 : -1;
   const z = door.hinge[2] + DOOR_WIDTH + 0.15;

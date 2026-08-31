@@ -41,7 +41,7 @@ check("no Draco, which would need a CDN decoder",
   !root.listExtensionsUsed().some((e) => e.extensionName.includes("draco")));
 
 // Props
-const EXPECTED = ["armchair","desk","sideboard","chandelier","painting-large","painting-small","painting-square","crate"];
+const EXPECTED = ["chandelier"];
 const scene = root.listScenes()[0];
 const nodes = scene.listChildren().filter((n) => n.getMesh());
 check("all eight props are present", nodes.length === 8, `${nodes.length}`);

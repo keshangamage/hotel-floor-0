@@ -7,6 +7,7 @@ import { Interactable } from "@/components/interaction/Interactable";
 import { audio } from "@/game/systems/audio";
 import { doorFootprint, doorYaw } from "@/game/systems/doors";
 import type { DoorSpec } from "@/game/types";
+import { useGameStore } from "@/store/useGameStore";
 
 import { FIXTURE_MATERIAL, MATERIALS, UNIT_BOX } from "./resources";
 
@@ -38,6 +39,10 @@ export function HingedDoor({ spec }: { spec: DoorSpec }) {
   const prompt = spec.locked ? "Locked" : open ? "Close" : "Open";
 
   useFrame((_, delta) => {
+    // A swing carries its collider with it, so letting one finish during a
+    // pause moves solid geometry while the player is in the menu.
+    if (useGameStore.getState().phase !== "playing") return;
+
     const target = open ? 1 : 0;
     const step = Math.min(delta, 0.05) / SWING_TIME;
     if (progress.current < target) progress.current = Math.min(target, progress.current + step);

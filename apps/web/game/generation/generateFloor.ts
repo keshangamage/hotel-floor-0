@@ -130,8 +130,11 @@ export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED):
     lamps.push({ z, castShadow: false, lit: true });
   }
 
-  // At most two shadow casters: they are by far the biggest lighting cost.
-  const casters = createRandom(`${seed}:shadows`).sample(lamps.length, 2);
+  // One shadow caster in the corridor. Each one is a full extra pass over the
+  // scene, and the furnished room adds a second of its own, with the player's
+  // torch making a third whenever it is on. Occlusion covers the contact
+  // darkening a second corridor caster used to be carrying.
+  const casters = createRandom(`${seed}:shadows`).sample(lamps.length, 1);
   // Every fixture works. The lamps are spaced so that each door falls inside a
   // cone, and killing one at random strands a door in the dark, so a dead
   // fixture is something that has gone wrong rather than the normal state.

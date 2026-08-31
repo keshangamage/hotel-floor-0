@@ -69,6 +69,32 @@ check("and so no doors to open", buildFloor(f0).doors.length === 0,
 check("its corridor runs longer than any other",
   f0.corridorFrom < f5.corridorFrom - 8,
   `${(f5.corridorFrom - f0.corridorFrom).toFixed(1)}m longer`);
+// Reaching floor zero is the end of the run, and until now there was nothing
+// down there to find. The note is the only payoff the game offers.
+{
+  const layout = buildFloor(f0);
+  const note = layout.notes.find((n) => n.id === "floor-0-notice");
+  check("something is waiting at the bottom", note !== undefined,
+    `${layout.notes.length} notes`);
+
+  if (note) {
+    // At the far end, so the walk through the dark is the point.
+    const fromLift = f0.corridorTo - note.position[2];
+    check("it is at the far end of the corridor", fromLift > 30,
+      `${fromLift.toFixed(0)}m from the lift`);
+    check("and inside the corridor rather than through the wall",
+      note.position[2] > f0.corridorFrom, `z=${note.position[2].toFixed(1)}`);
+    check("lying on the floor", note.position[1] > 0 && note.position[1] < 0.05,
+      `y=${note.position[1]}`);
+    check("and it says something", note.lines.some((l) => l.length > 0));
+  }
+
+  // Only there. A floor the player still has to judge must not gain a note.
+  const elsewhere = [5, 4, 3, 2, 1]
+    .filter((n) => buildFloor(generateFloor(n)).notes.some((x) => x.id === "floor-0-notice"));
+  check("and nowhere else", elsewhere.length === 0, elsewhere.join(", ") || "floor zero only");
+}
+
 check("and most of it is unlit",
   f0.lamps.filter((l) => l.lit).length * 2 < f0.lamps.length,
   `${f0.lamps.filter((l) => l.lit).length} of ${f0.lamps.length} lit`);
@@ -142,9 +168,15 @@ check("the elevator serves floor 0", isServed(0, ELEVATOR_CONFIG) && isServed(5,
 for (const n of [0, 5, -1, -2, -3]) {
   const f = generateFloor(n, DEFAULT_SEED);
   const casters = f.lamps.filter(l => l.castShadow).length;
-  if (casters > 2) { check(`floor ${n} shadow budget`, false, `${casters}`); }
+  if (casters > 1) { check(`floor ${n} corridor shadow budget`, false, `${casters}`); }
 }
-check("no generated floor exceeds two shadow casters", true);
+// Counted here rather than asserted as a literal: this check used to pass a
+// hard coded true, so it reported a budget it never measured.
+{
+  const worst = Math.max(...[5, 4, 3, 2, 1, 0]
+    .map((n) => generateFloor(n, DEFAULT_SEED).lamps.filter((l) => l.castShadow).length));
+  check("no corridor casts more than one shadow", worst <= 1, `worst floor has ${worst}`);
+}
 
 // Every generated floor must be playable: the car must be standable and the
 // corridor walkable, or the player arrives inside a wall.

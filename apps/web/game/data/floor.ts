@@ -12,6 +12,7 @@ import {
   WINDOW_TOP,
   WINDOW_WIDTH,
 } from "./dimensions";
+import { ENDING_FLOOR } from "../systems/anomaly";
 import { ELEVATOR, buildElevator } from "./elevator";
 import { furnishHotelRoom, type RoomFrame } from "./furniture";
 import { DEFAULT_SEED, generateFloor } from "../generation/generateFloor";
@@ -94,6 +95,38 @@ function corridorPaintings(spec: FloorSpec): PaintingSpec[] {
     return out.map((p, i) => (i === at ? { ...p, art: hung.art + 1 } : p));
   }
   return out;
+}
+
+/**
+ * What is waiting at the bottom.
+ *
+ * Floor zero has no rooms, so this lies on the floor at the far end of a
+ * corridor twice the length of any other. Reaching it is the end of the run,
+ * and walking that far in the dark to find a single sheet of paper is the only
+ * payoff the game offers.
+ */
+function endingNote(spec: FloorSpec): NoteSpec[] {
+  if (spec.floorNumber !== ENDING_FLOOR) return [];
+  return [
+    {
+      id: "floor-0-notice",
+      position: [0, 0.01, spec.corridorFrom + 0.9],
+      yaw: 0,
+      // The hotel's own voice, the same as the notice in every room. The last
+      // line is an instruction the player cannot follow: the lift will only
+      // take them back to the top to start again.
+      title: "Notice to guests",
+      lines: [
+        "You have reached the ground floor.",
+        "",
+        "There is nothing beneath a hotel.",
+        "",
+        "Thank you for counting.",
+        "",
+        "Please return to your room.",
+      ],
+    },
+  ];
 }
 
 export function buildFloor(spec: FloorSpec): FloorLayout {
@@ -244,11 +277,17 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
   return {
     boxes,
     lamps,
-    doors: spec.rooms.map(doorFor),
+    // A door plate is dressing rather than plan: the room still has its
+    // number, and only the thing screwed to the wall is missing.
+    doors: spec.rooms.map(doorFor).map((door, i) =>
+      spec.anomaly?.kind === "sign-gone" && i === spec.anomaly.target % spec.rooms.length
+        ? { ...door, label: undefined }
+        : door,
+    ),
     switches,
     props,
     paintings: corridorPaintings(spec),
-    notes,
+    notes: [...notes, ...endingNote(spec)],
     spawn,
     spawnYaw: start ? (start.side === 1 ? Math.PI / 2 : -Math.PI / 2) : Math.PI,
   };

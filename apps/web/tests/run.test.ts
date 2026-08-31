@@ -25,7 +25,7 @@ const reset = () => useGameStore.setState({ depth: 0, best: 0, finished: 0, pend
 {
   reset();
   const before = store().seed;
-  store().recordCall(judge(0, false, "down"), null);
+  store().recordCall(judge(0, false, "unchanged"), null);
   check("a right call queues no new hotel", store().pendingSeed === null);
   store().setFloorNumber(4);
   check("and leaves the seed alone", store().seed === before, store().seed);
@@ -37,7 +37,7 @@ const reset = () => useGameStore.setState({ depth: 0, best: 0, finished: 0, pend
 {
   reset();
   const before = store().seed;
-  store().recordCall(judge(3, false, "up"), null);
+  store().recordCall(judge(3, false, "changed"), null);
   check("a wrong call queues a new hotel", store().pendingSeed !== null);
   check("but has not swapped it yet", store().seed === before,
     "the doors are still open at this point");
@@ -53,7 +53,7 @@ const reset = () => useGameStore.setState({ depth: 0, best: 0, finished: 0, pend
   const seeds = new Set<string>();
   for (let i = 0; i < 40; i += 1) {
     reset();
-    store().recordCall(judge(2, false, "up"), null);
+    store().recordCall(judge(2, false, "changed"), null);
     store().setFloorNumber(5);
     seeds.add(store().seed);
   }
@@ -65,7 +65,7 @@ const reset = () => useGameStore.setState({ depth: 0, best: 0, finished: 0, pend
   const bad: string[] = [];
   for (let i = 0; i < 40; i += 1) {
     reset();
-    store().recordCall(judge(2, false, "up"), null);
+    store().recordCall(judge(2, false, "changed"), null);
     store().setFloorNumber(5);
     const seed = store().seed;
     for (const floor of [5, 4, 3, 2, 1]) {
@@ -81,7 +81,7 @@ const reset = () => useGameStore.setState({ depth: 0, best: 0, finished: 0, pend
   const wrong: string[] = [];
   for (let i = 0; i < 60; i += 1) {
     reset();
-    store().recordCall(judge(1, false, "up"), null);
+    store().recordCall(judge(1, false, "changed"), null);
     store().setFloorNumber(5);
     if (generateFloor(5, store().seed).anomaly !== null) wrong.push(store().seed);
   }
@@ -107,16 +107,16 @@ const reset = () => useGameStore.setState({ depth: 0, best: 0, finished: 0, pend
 {
   reset();
   // Deepest reached must not fall back when a run is lost.
-  store().recordCall(judge(0, false, "down"), null);
-  store().recordCall(judge(1, false, "down"), null);
+  store().recordCall(judge(0, false, "unchanged"), null);
+  store().recordCall(judge(1, false, "unchanged"), null);
   check("deepest tracks the run", store().best === 2, `${store().best}`);
-  store().recordCall(judge(2, false, "up"), null);
+  store().recordCall(judge(2, false, "changed"), null);
   check("losing the run does not lose the record",
     store().depth === 0 && store().best === 2, `depth ${store().depth}, best ${store().best}`);
 
-  store().recordCall(judge(4, false, "down"), null);
+  store().recordCall(judge(4, false, "unchanged"), null);
   check("finishing is counted", store().finished === 1, `${store().finished}`);
-  store().recordCall(judge(4, false, "down"), null);
+  store().recordCall(judge(4, false, "unchanged"), null);
   check("and counted again on a second run", store().finished === 2, `${store().finished}`);
 }
 
@@ -153,7 +153,7 @@ const reset = () => useGameStore.setState({ depth: 0, best: 0, finished: 0, pend
   check("sensitivity is settable", store().sensitivity === 1.8, `${store().sensitivity}`);
 
   // Losing a run must not reset how loud the game is.
-  store().recordCall(judge(2, false, "up"), null);
+  store().recordCall(judge(2, false, "changed"), null);
   store().setFloorNumber(5);
   check("a lost run keeps the settings",
     store().volume === 0.25 && store().sensitivity === 1.8,
@@ -189,21 +189,47 @@ const reset = () => useGameStore.setState({ depth: 0, best: 0, finished: 0, pend
 // them nothing: they could not tell a missed anomaly from one they imagined.
 {
   reset();
-  store().recordCall(judge(2, true, "down"), "a picture has come off the corridor wall");
+  store().recordCall(judge(2, true, "unchanged"), "a picture has come off the corridor wall");
   check("a missed anomaly is remembered",
     store().lastCall?.was === "a picture has come off the corridor wall",
     store().lastCall?.was ?? "nothing");
   check("and the call is marked wrong", store().lastCall?.correct === false);
 
   reset();
-  store().recordCall(judge(2, false, "up"), null);
+  store().recordCall(judge(2, false, "changed"), null);
   check("a floor with nothing wrong records nothing", store().lastCall?.was === null);
   check("and that call is wrong too", store().lastCall?.correct === false);
 
   reset();
-  store().recordCall(judge(2, true, "up"), "a fixture will not hold steady");
+  store().recordCall(judge(2, true, "changed"), "a fixture will not hold steady");
   check("a right call is still right when something was wrong",
     store().lastCall?.correct === true && store().depth === 3);
+}
+
+// Pausing has to freeze the world, not half of it. The room tone stopped on
+// pause while the knocking carried on and the lift travelled through it,
+// arriving on a different floor with the player still in the menu.
+{
+  const { readFileSync } = await import("node:fs");
+  const read = (f: string) => readFileSync(`apps/web/components/${f}`, "utf8");
+  const gated = (src: string) => /phase !== "playing"\) return|phase === "playing"/.test(src);
+
+  // Anything that changes state or makes a sound.
+  for (const [what, file] of [
+    ["the lift", "environment/Elevator.tsx"],
+    ["the hotel's sound", "game/Audio.tsx"],
+    ["a swinging door", "environment/HingedDoor.tsx"],
+    ["the player", "player/Player.tsx"],
+    ["interaction", "game/Interactions.tsx"],
+  ] as const) {
+    check(`${what} stops when the game is paused`, gated(read(file)));
+  }
+
+  // And what is deliberately left running: nothing here changes state, and
+  // the pause overlay covers the screen anyway.
+  check("the torch and the flicker are left alone",
+    !gated(read("lighting/CeilingLamp.tsx")) && !gated(read("player/Flashlight.tsx")),
+    "purely visual, behind an opaque overlay");
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);

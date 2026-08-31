@@ -53,6 +53,11 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
   useEffect(() => () => motor.current?.stop(), []);
 
   useFrame((_, delta) => {
+    // A paused game freezes the car. Left running it would travel through the
+    // pause and open onto a different floor while the player is in the menu,
+    // and ring its bell there.
+    if (useGameStore.getState().phase !== "playing") return;
+
     const state = elevator.current;
     stepElevator(state, Math.min(delta, 0.05), ELEVATOR_CONFIG);
 
@@ -149,18 +154,20 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
       {/* Interior panel. */}
       <group position={PANEL_POSITION} rotation={[0, -Math.PI / 2, 0]}>
         <mesh geometry={UNIT_BOX} material={MATERIALS.metal} scale={[0.17, 0.56, 0.02]} />
-        {/* Down carries on, up turns back. Which is right depends on what
-            the player saw in the corridor they just walked. */}
+        {/* Both of these take the car down when they are right. They are the
+            player's verdict on the corridor they just walked, not a direction,
+            and labelling them up and down said the opposite of what happened
+            to the floor number. */}
         <PanelButton
           position={[0, 0.16, 0.014]}
-          prompt={finished ? "Begin again" : "Go down"}
-          onPress={() => press("down")}
+          prompt={finished ? "Begin again" : "Nothing had changed"}
+          onPress={() => press("unchanged")}
           active
         />
         <PanelButton
           position={[0, 0.02, 0.014]}
-          prompt={finished ? "Begin again" : "Go back up"}
-          onPress={() => press("up")}
+          prompt={finished ? "Begin again" : "Something had changed"}
+          onPress={() => press("changed")}
           active
         />
         <PanelButton

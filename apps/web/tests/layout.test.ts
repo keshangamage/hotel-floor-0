@@ -1,4 +1,5 @@
-import { FLOOR_5, FLOOR_5_LAYOUT } from "../game/data/floor";
+import { buildFloor, FLOOR_5, FLOOR_5_LAYOUT } from "../game/data/floor";
+import { generateFloor } from "../game/generation/generateFloor";
 import { PROP_SIZES } from "../game/data/propSizes.generated";
 import { createColliderSet, emptyCollider } from "../game/systems/colliders";
 import { doorFootprint } from "../game/systems/doors";
@@ -186,8 +187,8 @@ check("floor-standing props rest on the floor", floating.length === 0,
 // The game explains itself exactly once, on a note in the guest room. If it
 // is missing, floating, or unreadable, a new player has no rules at all.
 {
-  const note = L.notes.find((n) => n.id.includes("507"));
-  check("the guest room has a notice", note !== undefined, `${L.notes.length} notes`);
+  const note = L.notes.find((n) => n.id.endsWith("-notice"));
+  check("the guest room has the hotel's notice", note !== undefined, `${L.notes.length} notes`);
 
   if (note) {
     const desk = roomProps.find((p) => p.id === "desk");
@@ -207,9 +208,16 @@ check("floor-standing props rest on the floor", floating.length === 0,
       `${note.lines.filter((l) => l).length} lines`);
     // It has to state the rule, or it is set dressing rather than the tutorial.
     const text = note.lines.join(" ").toLowerCase();
+    // Both halves of the rule, and the cost of getting it wrong. It must not
+    // say up or down: the lift takes a verdict and carries the guest down
+    // either way, so directions would describe the opposite of what happens.
     check("it states both halves of the rule",
-      text.includes("up") && text.includes("down"),
-      text.slice(0, 60) + "...");
+      text.includes("differ") && text.includes("not differ"),
+      text.slice(0, 70) + "...");
+    check("and what a wrong answer costs", text.includes("returned to the fifth"));
+    check("without telling the guest to go up",
+      !/\bgo up\b|\bgo down\b/.test(text),
+      "the lift descends on either right answer");
   }
 }
 
@@ -225,6 +233,51 @@ check("floor-standing props rest on the floor", floating.length === 0,
   // Without this the driver reopens the note on the frame it was closed.
   check("the same key puts it down again",
     /reading[\s\S]{0,200}consumePress\("interact"\)/.test(read("components/player/InputActions.tsx")));
+}
+
+// A second note, left by whoever had the room before. It can only exist by
+// being identical everywhere: anything that differed between floors would read
+// as an anomaly, and the player would go up for it.
+{
+  const guest = L.notes.find((n) => n.id.endsWith("-guest"));
+  check("there is a note from the last guest", guest !== undefined);
+
+  if (guest) {
+    const stand = roomProps.find((p) => p.id === "nightstand");
+    if (stand) {
+      const [sx, sy, sz] = PROP_SIZES.nightstand;
+      const above = guest.position[1] - sy;
+      check("it lies on the nightstand", above > 0 && above < 0.02,
+        `${(above * 1000).toFixed(0)}mm above the ${sy.toFixed(2)}m top`);
+      // Quarter turned, so its extents swap.
+      check("and within its edges",
+        Math.abs(guest.position[0] - stand.position[0]) <= sz / 2
+        && Math.abs(guest.position[2] - stand.position[2]) <= sx / 2);
+    }
+
+    const lamp = L.lamps.find((l) => l.id?.endsWith("-bedside"));
+    check("it does not sit under the lamp",
+      lamp !== undefined
+      && Math.hypot(guest.position[0] - lamp.position[0], guest.position[2] - lamp.position[2]) > 0.15,
+      "or the shade would hide it");
+  }
+}
+
+// The same words on every floor. A note that changed as the player descended
+// would be an anomaly they were never told about.
+{
+  const read = (floor: number) => {
+    const notes = buildFloor(generateFloor(floor, "quiet-seed")).notes;
+    return notes.map((n) => `${n.id.replace(/^room-\d+/, "")}:${n.lines.join("|")}`).sort().join("~");
+  };
+  const reference = read(5);
+  const differing = [4, 3, 2, 1].filter((f) => {
+    const spec = generateFloor(f, "quiet-seed");
+    // Except where an anomaly is meant to rewrite one.
+    return spec.anomaly?.kind !== "notice-changed" && read(f) !== reference;
+  });
+  check("every floor's notes say the same thing", differing.length === 0,
+    differing.length ? `floors ${differing.join(", ")}` : "identical on all of them");
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);

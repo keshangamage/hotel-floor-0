@@ -288,14 +288,19 @@ export function furnishHotelRoom(
       // The altered notice swaps the two instructions. A player who reads it
       // and obeys is led the wrong way, but a player who remembers the one in
       // their own room sees it for what it is, which is the whole game.
+      // The lift takes a verdict, not a direction: both answers carry the
+      // guest down when they are right. Wording it as up and down told them
+      // the opposite of what the floor indicator then did.
       lines: alteredNotice
         ? [
             "The fifth floor is the ground floor.",
             "",
             "Should the floor you are on differ in any way",
-            "from this one, continue down.",
+            "from this one, tell the lift that it does not.",
             "",
-            "Should it not differ, return to the lift and go up.",
+            "Should it not differ, tell the lift that it does.",
+            "",
+            "Answer wrongly and you will be returned to the fifth.",
             "",
             "The stairs are not in service.",
           ]
@@ -303,14 +308,43 @@ export function furnishHotelRoom(
             "The fifth floor is the ground floor.",
             "",
             "Should the floor you are on differ in any way",
-            "from this one, return to the lift and go up.",
+            "from this one, tell the lift so.",
             "",
-            "Should it not differ, go down.",
+            "Should it not differ, tell the lift that instead.",
+            "",
+            "Answer wrongly and you will be returned to the fifth.",
             "",
             "The stairs are not in service.",
           ],
     },
   ];
+
+  /**
+   * Left by whoever had the room before.
+   *
+   * The same note in every room on every floor, which is the only way it can
+   * exist at all: anything that differed between floors would read as an
+   * anomaly. Identical everywhere is also the worse answer, and the player
+   * gets there on their own the second time they find it.
+   */
+  notes.push({
+    id: `${roomId}-guest`,
+    // On the nightstand, beside the lamp rather than under it.
+    position: localPoint(frame, 4.15, PROP_SIZES.nightstand[1] + 0.005, -0.3),
+    yaw: worldYaw(frame, Math.PI / 2),
+    title: "Left on the nightstand",
+    lines: [
+      "I have counted the floors four times.",
+      "",
+      "The lift agrees with the doors. The doors agree",
+      "with each other. I have checked them twice.",
+      "",
+      "It is the corridor. It was shorter yesterday.",
+      "I have stopped telling them.",
+      "",
+      "If you are reading this, do not go down to see.",
+    ],
+  });
 
   // On the doorway centreline, which the layout keeps clear.
   const spawn = localPoint(frame, 1.3, 0, 0);

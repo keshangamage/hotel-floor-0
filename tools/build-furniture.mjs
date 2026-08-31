@@ -106,8 +106,6 @@ const TEXTURE_SIZE = 1024;
 /** id is what the game asks for; mesh is the FBX node name. */
 const PICKS = [
   { id: "rug", mesh: "Carpet_01", ratio: 1 },
-  { id: "dresser", mesh: "WoodenShelf_02", ratio: 1 },
-  { id: "couch", mesh: "Couch", ratio: 0.35 },
 ];
 
 /** FBX material name to the pack's texture file prefix. */

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import { FOOTSTEPS } from "@/game/data/footsteps.generated";
+import { CORRIDOR_HALF_WIDTH } from "@/game/data/dimensions";
 import { generateFloor } from "@/game/generation/generateFloor";
 import { audio } from "@/game/systems/audio";
 import { createStepTracker, stepDue, stepWeight } from "@/game/systems/footsteps";
@@ -14,6 +15,21 @@ const MOVING = 0.35;
 /** How far behind the player the other footsteps land, in metres and seconds. */
 const FOLLOW_DISTANCE = 2.6;
 const FOLLOW_DELAY = 0.34;
+/**
+ * Steps that land after the player has stopped.
+ *
+ * Following that stops when you stop is indistinguishable from your own feet,
+ * and a player will talk themselves out of it. Something that takes two more
+ * steps and then stops is the whole anomaly.
+ */
+const TRAILING = [0.34, 0.78];
+/**
+ * Seconds between bursts of knocking.
+ *
+ * It has to repeat. An event heard once and missed is one the player cannot
+ * go back and check, and the whole game is built on being able to check.
+ */
+const KNOCK_EVERY = 8;
 
 // Reused every frame so the loop stays allocation free.
 const forward = new THREE.Vector3();
@@ -41,6 +57,20 @@ export function Audio() {
   const volume = useGameStore((state) => state.volume);
   const silent = anomaly?.kind === "silence";
   const followed = anomaly?.kind === "following";
+
+  // Which door it comes from, fixed for the floor so the player can walk to it
+  // and be sure. Behind a locked one, so there is no way to look.
+  const knockAt = useMemo(() => {
+    if (anomaly?.kind !== "knocking") return null;
+    const spec = generateFloor(floorNumber, seed);
+    const shut = spec.rooms.filter((r) => r.door === "locked");
+    const room = shut[anomaly.target % Math.max(1, shut.length)];
+    if (!room) return null;
+    return [room.side * CORRIDOR_HALF_WIDTH, 1.05, room.doorZ] as const;
+  }, [anomaly, floorNumber, seed]);
+
+  const sinceKnock = useRef(KNOCK_EVERY - 2);
+  const wasMoving = useRef(false);
 
   useEffect(() => {
     if (phase !== "playing") return;
@@ -73,8 +103,19 @@ export function Audio() {
     audio.setVolume(volume);
   }, [volume, phase]);
 
-  useFrame(() => {
-    if (!audio.running) return;
+  useFrame((_, delta) => {
+    // The room tone is stopped by the effect above when the game is paused,
+    // but everything driven from here has to stop too, or a paused hotel
+    // carries on knocking at an empty corridor.
+    if (!audio.running || phase !== "playing") return;
+
+    if (knockAt) {
+      sinceKnock.current += Math.min(delta, 0.05);
+      if (sinceKnock.current >= KNOCK_EVERY) {
+        sinceKnock.current = 0;
+        audio.knock(knockAt);
+      }
+    }
 
     // Positional sounds are placed relative to this, so it has to track the
     // camera every frame or they all collapse to the middle of the corridor.
@@ -87,7 +128,17 @@ export function Audio() {
     facing[2] = forward.z;
     audio.setListener(ear, facing);
 
-    if (!motion.grounded || motion.speed < MOVING) return;
+    const moving = motion.grounded && motion.speed >= MOVING;
+
+    // The moment the player stops is the moment it gives itself away.
+    if (followed && wasMoving.current && !moving) {
+      behind.copy(camera.position).addScaledVector(forward, -FOLLOW_DISTANCE);
+      const at: [number, number, number] = [behind.x, behind.y - 0.9, behind.z];
+      for (const delay of TRAILING) audio.echoStep(delay, at);
+    }
+    wasMoving.current = moving;
+
+    if (!moving) return;
     if (!stepDue(steps.current, motion.travelled, motion.gait)) return;
     audio.footstep(stepWeight(motion.gait), steps.current.left);
 

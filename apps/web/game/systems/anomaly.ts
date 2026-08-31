@@ -30,6 +30,8 @@ export type AnomalyKind =
   | "painting-gone"
   | "painting-changed"
   | "display-wrong"
+  | "sign-gone"
+  | "knocking"
   | "silence"
   | "following";
 
@@ -50,6 +52,49 @@ export const ENDING_FLOOR = 0;
 /** Roughly half the floors are wrong, so neither answer is ever the safe one. */
 export const ANOMALY_CHANCE = 0.5;
 
+/**
+ * How hard each kind is to catch, from 1 for something you cannot miss to 3
+ * for something you have to already know to look for.
+ *
+ * The descent draws from the easy end first and opens up as it goes. A player
+ * on their first floor has nothing to compare against yet, so handing them a
+ * room gone quiet is not difficulty, it is a coin toss. By the time the floors
+ * are subtle they have walked the same corridor three times.
+ */
+const SUBTLETY: Record<AnomalyKind, 1 | 2 | 3> = {
+  // Cannot be walked past.
+  "door-open": 1,
+  "door-shut": 1,
+  "corridor-long": 1,
+  "corridor-short": 1,
+  "lamp-out": 1,
+  "room-lit": 1,
+  "flicker": 1,
+  "painting-gone": 1,
+  "sign-gone": 1,
+  // Needs a second look, or a memory of what was there.
+  "misnumbered": 2,
+  "twinned": 2,
+  "door-moved": 2,
+  "painting-changed": 2,
+  "furniture-moved": 2,
+  "bedside-dark": 2,
+  "display-wrong": 2,
+  "knocking": 2,
+  // Needs the player to already know the hotel.
+  "following": 3,
+  "notice-changed": 3,
+  "silence": 3,
+};
+
+/** The hardest kind a floor may use, by how far down it is. */
+function hardestAt(floorNumber: number): 1 | 2 | 3 {
+  const depth = REFERENCE_FLOOR - floorNumber;
+  if (depth <= 1) return 1;
+  if (depth === 2) return 2;
+  return 3;
+}
+
 /** Every kind there is. Exported so nothing can enumerate a stale subset. */
 export const ANOMALY_KINDS: readonly AnomalyKind[] = [
   "door-open",
@@ -68,6 +113,8 @@ export const ANOMALY_KINDS: readonly AnomalyKind[] = [
   "painting-gone",
   "painting-changed",
   "display-wrong",
+  "sign-gone",
+  "knocking",
   "silence",
   "following",
 ];
@@ -90,6 +137,10 @@ export const CARRIED: ReadonlySet<AnomalyKind> = new Set<AnomalyKind>([
   "painting-changed",
   // The lift's own indicator, which the plan does not describe either.
   "display-wrong",
+  // A door plate, which the plan describes as a number rather than a sign.
+  "sign-gone",
+  // The only one that happens rather than simply being so.
+  "knocking",
 ]);
 
 export const isCarried = (kind: AnomalyKind): boolean => CARRIED.has(kind);
@@ -108,7 +159,8 @@ export function chooseAnomaly(floorNumber: number, seed: string): Anomaly | null
   const random = createRandom(`${seed}:${floorNumber}:anomaly`);
   if (!random.chance(ANOMALY_CHANCE)) return null;
 
-  const kind = random.pick(ANOMALY_KINDS);
+  const allowed = ANOMALY_KINDS.filter((k) => SUBTLETY[k] <= hardestAt(floorNumber));
+  const kind = random.pick(allowed);
   return { kind, target: random.int(0, 1000), description: describe(kind) };
 }
 
@@ -130,6 +182,8 @@ function describe(kind: AnomalyKind): string {
     case "painting-gone": return "a picture has come off the corridor wall";
     case "painting-changed": return "a picture is not the one that hung there";
     case "display-wrong": return "the lift says it is on a different floor";
+    case "sign-gone": return "a door has lost its number";
+    case "knocking": return "someone is knocking from inside a locked room";
     case "silence": return "the floor makes no sound at all";
     case "following": return "something is walking a step behind";
   }
@@ -206,6 +260,8 @@ export function applyAnomaly(spec: FloorSpec, anomaly: Anomaly | null): FloorSpe
     case "painting-gone":
     case "painting-changed":
     case "display-wrong":
+    case "sign-gone":
+    case "knocking":
       return { ...spec, anomaly };
 
     case "corridor-long":

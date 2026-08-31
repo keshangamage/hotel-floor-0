@@ -286,6 +286,50 @@ export class AudioEngine {
     return voice;
   }
 
+  /**
+   * Knuckles on a door panel: three knocks, from somewhere in the world.
+   *
+   * Wood struck rather than a click, so a short burst of filtered noise over a
+   * body that drops fast. The three are unevenly spaced, because a metronome
+   * reads as a machine and a hand does not keep time.
+   */
+  knock(position: readonly [number, number, number]): void {
+    const context = this.ensure();
+    const out = this.route(position);
+    if (!context || !out || !this.white) return;
+    const now = context.currentTime;
+
+    for (const [offset, level] of [[0, 1], [0.29, 0.86], [0.53, 0.94]] as const) {
+      const start = now + offset;
+
+      const body = context.createOscillator();
+      body.type = "triangle";
+      body.frequency.setValueAtTime(180, start);
+      body.frequency.exponentialRampToValueAtTime(70, start + 0.07);
+      const bodyGain = context.createGain();
+      bodyGain.gain.setValueAtTime(0.0001, start);
+      bodyGain.gain.exponentialRampToValueAtTime(0.34 * level, start + 0.004);
+      bodyGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.13);
+      body.connect(bodyGain).connect(out);
+      body.start(start);
+      body.stop(start + 0.15);
+
+      const rap = context.createBufferSource();
+      rap.buffer = this.white;
+      const band = context.createBiquadFilter();
+      band.type = "bandpass";
+      band.frequency.value = 1600;
+      band.Q.value = 1.1;
+      const rapGain = context.createGain();
+      rapGain.gain.setValueAtTime(0.0001, start);
+      rapGain.gain.exponentialRampToValueAtTime(0.1 * level, start + 0.003);
+      rapGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.05);
+      rap.connect(band).connect(rapGain).connect(out);
+      rap.start(start, Math.random());
+      rap.stop(start + 0.06);
+    }
+  }
+
   /** A switch or a button, so pressing one is not silent. */
   click(position?: readonly [number, number, number]): void {
     const context = this.ensure();
