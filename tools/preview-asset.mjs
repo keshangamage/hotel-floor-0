@@ -11,18 +11,22 @@
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "meshoptimizer";
 import sharp from "sharp";
 
 const [source, out = "preview.png"] = process.argv.slice(2);
 if (!source) throw new Error("usage: node tools/preview-asset.mjs <model.glb> [out.png] [--back]");
 const front = !process.argv.includes("--back");
 const buf = readFileSync(source);
+await MeshoptDecoder.ready;
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const gltf = await new Promise((res, rej) =>
-  new GLTFLoader().parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset+buf.byteLength), "", res, rej));
+  loader.parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset+buf.byteLength), "", res, rej));
 const scene = gltf.scene;
 scene.updateMatrixWorld(true);
 
 const W = 320, H = 520;
+const LIGHT = new THREE.Vector3(-0.45, 0.55, 0.7).normalize();
 const tris = [];
 scene.traverse((o) => {
   if (!o.isMesh) return;
@@ -48,7 +52,10 @@ function render(fromFront, file) {
       z: s*q.z,
     }));
     const nx = new THREE.Vector3().subVectors(v[1],v[0]).cross(new THREE.Vector3().subVectors(v[2],v[0])).normalize();
-    const light = Math.max(0.15, Math.abs(nx.z)*0.75 + nx.y*0.25 + 0.2);
+    // Lit from off to one side rather than from the camera. A headlight makes
+    // every recess the same brightness as the surface around it, which hides
+    // exactly the features worth checking.
+    const light = Math.max(0.08, nx.dot(LIGHT) * 0.85 + 0.12);
     const minX = Math.max(0, Math.floor(Math.min(...p.map(q=>q.x)))), maxX = Math.min(W-1, Math.ceil(Math.max(...p.map(q=>q.x))));
     const minY = Math.max(0, Math.floor(Math.min(...p.map(q=>q.y)))), maxY = Math.min(H-1, Math.ceil(Math.max(...p.map(q=>q.y))));
     const d = (a,b,c) => (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);

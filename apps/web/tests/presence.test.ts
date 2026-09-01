@@ -107,32 +107,34 @@ const looking = (dx: number, dz: number): Watcher => {
     "the ending is the answer, not another scare");
 }
 
-// The model it is drawn with. Converting the source strips the rig if the
-// wrong transform runs, and a GLB that has lost its skin still loads, still
-// renders, and simply stands there, which is not something the game reports.
+// The model it is drawn with. The source is one flat grey with no UVs, so the
+// cloth colour is the only thing making it look like anything, and it is a lot
+// of triangles for something the player is never allowed a good look at.
 {
   const { NodeIO } = await import("@gltf-transform/core");
-  const nodeNames = (root: { listNodes(): { getMesh(): unknown; getName(): string }[] }) =>
-    root.listNodes().filter((n) => n.getMesh()).map((n) => n.getName());
-  const doc = await new NodeIO().read("apps/web/public/models/figure.glb");
-  const root = doc.getRoot();
-  check("the figure ships with its rig", root.listSkins().length === 1,
-    "without it the idle plays over a mesh that cannot move");
-  const clips = root.listAnimations().map((a) => a.getName());
-  check("and with the clip it is drawn playing", clips.includes("idle_up_down"),
-    clips.join(", ") || "none");
+  const { ALL_EXTENSIONS } = await import("@gltf-transform/extensions");
+  const { MeshoptDecoder } = await import("meshoptimizer");
+  await MeshoptDecoder.ready;
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ "meshopt.decoder": MeshoptDecoder });
+  const root = (await io.read("apps/web/public/models/figure.glb")).getRoot();
 
-  // The download has no textures at all, so the look is materials and the two
-  // eyes are geometry. Both of those merge back into one flat grey if the
-  // colouring is ever dropped from the build.
+  const tris = root.listMeshes()
+    .flatMap((mesh) => mesh.listPrimitives())
+    .reduce((n, p) => n + (p.getIndices()?.getCount() ?? p.getAttribute("POSITION")!.getCount()) / 3, 0);
+  check("the figure ships with geometry", tris > 0);
+  check("and is decimated on the way in", tris < 30000,
+    `${Math.round(tris)} tris, down from 57724`);
+
   const materials = root.listMaterials().map((m) => m.getName());
-  check("it is not the grey it arrives as",
-    ["Cloth", "Eye"].every((name) => materials.includes(name)),
-    materials.join(", "));
-  check("and the hat is off it", !nodeNames(root).includes("Hat"), "it is a hooded shape now");
-  const nodes = nodeNames(root);
-  check("and it has eyes", nodes.includes("EyeLeft") && nodes.includes("EyeRight"),
-    nodes.join(", "));
+  check("it is not the grey it arrives as", materials.includes("Cloth"),
+    materials.join(", ") || "none");
+
+  // A camera ships inside the source and is nothing to do with a prop.
+  check("and the source's camera did not come with it",
+    root.listNodes().every((n) => n.getCamera() === null),
+    "a scene export carries the room it was authored in");
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
