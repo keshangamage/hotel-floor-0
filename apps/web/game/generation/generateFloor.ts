@@ -154,6 +154,14 @@ export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED):
   // player cannot arrive already knowing where to go.
   // int is inclusive of its upper bound, so this is the last index, not the count.
   const openIndex = hotel.int(0, rooms.length - 1);
+
+  // A second room, locked, with a key to it somewhere on the floor. Drawn from
+  // its own sequence so adding it does not move any draw the hotel already
+  // made, and without the floor number so every floor agrees: a room that was
+  // openable on five and is not on four would read as an anomaly.
+  const keyed = createRandom(`${seed}:keyed`);
+  let keyedIndex = keyed.int(0, rooms.length - 2);
+  if (keyedIndex >= openIndex) keyedIndex += 1;
   const guestRoom = rooms[openIndex];
   if (openIndex >= 0) {
     rooms[openIndex] = {
@@ -163,6 +171,7 @@ export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED):
       lit: false,
     };
   }
+  rooms[keyedIndex] = { ...rooms[keyedIndex]!, keyed: true };
 
   // Fixtures march back from the elevator. The 1m offset matters: doors
   // alternate every 2m, so lamps on the pitch sit directly over one side and

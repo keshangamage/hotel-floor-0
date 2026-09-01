@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { tally } from "@/game/systems/ledger";
 import { useGameStore } from "@/store/useGameStore";
 
 /** Long enough to watch the corridor go, short enough not to be a loading screen. */
@@ -35,7 +36,18 @@ export function Ending() {
 
 function EndingScreen() {
   const restart = useGameStore((state) => state.restart);
+  const seed = useGameStore((state) => state.seed);
+  const visited = useGameStore((state) => state.visited);
+  const marked = useGameStore((state) => state.marked);
+  const carried = useGameStore((state) => state.carrying);
   const [stage, setStage] = useState(0);
+
+  // Only worth saying to a player who was keeping one. Somebody who never
+  // found the notebook was not quietly running a tally in their head, and
+  // telling them what they missed would be scoring a game they were not
+  // playing.
+  const kept = carried.ledger === true;
+  const count = tally(seed, visited, marked);
 
   useEffect(() => {
     // Pointer lock outlives the frame loop, so it is released by hand.
@@ -67,9 +79,32 @@ function EndingScreen() {
           className="flex flex-col items-center gap-6 transition-opacity duration-[1800ms]"
           style={{ opacity: stage >= 2 ? 1 : 0 }}
         >
+          {kept && count.walked > 0 && (
+            <p className="font-mono text-[0.68rem] leading-[2.2] tracking-[0.2em] text-neutral-500">
+              <span className="block">
+                {`You walked ${count.walked} ${count.walked === 1 ? "floor" : "floors"}.`}
+                {` ${count.wrong} of them were not as they should have been.`}
+              </span>
+              <span className="block">
+                {count.written === 0
+                  ? "You wrote nothing down."
+                  : `You wrote down ${count.written}, and were right about ${count.caught}.`}
+              </span>
+              {count.missed > 0 && (
+                <span className="block text-neutral-600">
+                  {`${count.missed} you walked straight through.`}
+                </span>
+              )}
+            </p>
+          )}
           <h2 className="font-mono text-lg font-light uppercase tracking-[0.55em] text-neutral-500">
             Hotel Floor 0
           </h2>
+          <p className="font-mono text-[0.55rem] uppercase leading-[2.4] tracking-[0.3em] text-neutral-700">
+            <span className="block">Written, built and broken by Keshan Gamage</span>
+            <span className="block">Every hotel in it is a different one</span>
+          </p>
+
           <button
             type="button"
             onClick={restart}

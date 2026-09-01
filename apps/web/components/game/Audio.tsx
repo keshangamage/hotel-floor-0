@@ -32,6 +32,16 @@ const TRAILING = [0.34, 0.78];
  */
 const KNOCK_EVERY = 8;
 
+/**
+ * Seconds between rings.
+ *
+ * A phone rings until it is answered. This one is answered by opening the door
+ * it is behind, which is the only thing in the game the key is needed twice
+ * for, and until then it keeps going: a telephone that gave up after three
+ * would be a sound effect rather than somebody calling.
+ */
+const RING_EVERY = 5.2;
+
 // Reused every frame so the loop stays allocation free.
 const forward = new THREE.Vector3();
 const behind = new THREE.Vector3();
@@ -71,7 +81,21 @@ export function Audio() {
     return [room.side * CORRIDOR_HALF_WIDTH, 1.05, room.doorZ] as const;
   }, [anomaly, floorNumber, seed]);
 
+  // Behind the one door on the floor that opens. Ringing from a room the
+  // player can reach is the difference between this and the knocking.
+  const ringAt = useMemo(() => {
+    if (anomaly?.kind !== "telephone") return null;
+    const spec = generateFloor(floorNumber, seed);
+    const keyed = spec.rooms.find((room) => room.keyed);
+    if (!keyed) return null;
+    return {
+      at: [keyed.side * CORRIDOR_HALF_WIDTH, 1.0, keyed.doorZ] as const,
+      door: `room-${keyed.number}`,
+    };
+  }, [anomaly, floorNumber, seed]);
+
   const sinceKnock = useRef(KNOCK_EVERY - 2);
+  const sinceRing = useRef(RING_EVERY - 1.5);
   const wasMoving = useRef(false);
 
   useEffect(() => {
@@ -125,6 +149,15 @@ export function Audio() {
       if (sinceKnock.current >= KNOCK_EVERY) {
         sinceKnock.current = 0;
         audio.knock(knockAt);
+      }
+    }
+
+    // Stops the moment that door is opened, which is the only way to answer it.
+    if (ringAt && !useGameStore.getState().unlocked[ringAt.door]) {
+      sinceRing.current += Math.min(delta, 0.05);
+      if (sinceRing.current >= RING_EVERY) {
+        sinceRing.current = 0;
+        audio.telephone(ringAt.at);
       }
     }
 

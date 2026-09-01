@@ -20,7 +20,7 @@ import { ELEVATOR, buildElevator } from "./elevator";
 import { furnishHotelRoom, type RoomFrame } from "./furniture";
 import { DEFAULT_SEED, generateFloor } from "../generation/generateFloor";
 import type {
-  BoxSpec, DoorSpec, FloorLayout, FloorSpec, LampSpec, PaintingSpec, NoteSpec,
+  BoxSpec, DoorSpec, FloorLayout, FloorSpec, ItemSpec, LampSpec, PaintingSpec, NoteSpec,
   PropSpec, RoomSpec, SwitchSpec, Vec3,
 } from "../types";
 
@@ -45,6 +45,45 @@ const doorway = (spec: RoomSpec): Opening => ({
 
 const DOOR_THICKNESS = 0.045;
 
+/**
+ * The one key in the hotel.
+ *
+ * One key, not one per floor. The player finds it once and it keeps working
+ * all the way down, which is both less to carry and the better idea: a guest
+ * whose key opens the same room on a floor that should not have that room is
+ * worse than a guest with a pocketful of keys.
+ */
+export const GUEST_KEY = "key-guest";
+
+/** The notebook the anomalies get written in. */
+export const LEDGER = "ledger";
+
+/**
+ * What the notebook says when it is opened.
+ *
+ * The game's one piece of teaching, and it is in the guest's hand rather than
+ * the interface's: he worked the rule out before the player did and wrote it
+ * to himself. Shown the moment the notebook is picked up, which is the moment
+ * the player can act on it.
+ */
+export const FIRST_PAGE: NoteSpec = {
+  id: "ledger-first-page",
+  position: [0, 0, 0],
+  yaw: 0,
+  title: "The first page",
+  lines: [
+    "Every floor of this hotel is the same floor.",
+    "The doors, the numbers, the pictures on the walls,",
+    "the notice about breakfast. All of it.",
+    "",
+    "When one of them is not, write it down.",
+    "Press Q.",
+    "",
+    "The fifth is only the floor I have seen most of.",
+    "That is not the same as it being the right one.",
+  ],
+};
+
 function doorFor(spec: RoomSpec): DoorSpec {
   return {
     id: `room-${spec.number}`,
@@ -59,6 +98,7 @@ function doorFor(spec: RoomSpec): DoorSpec {
     // which one it is, and shows when that has changed.
     startsOpen: spec.door === "unlocked",
     label: String(spec.number),
+    needs: spec.keyed ? GUEST_KEY : undefined,
   };
 }
 
@@ -181,6 +221,31 @@ function endingNote(spec: FloorSpec): NoteSpec[] {
   ];
 }
 
+/**
+ * What is behind the locked door.
+ *
+ * The same page on every floor, and it has to be: the game asks whether
+ * anything has changed since the last floor, so a page that differed between
+ * them would be a difference the player could not act on, and every floor
+ * would read as wrong.
+ *
+ * Repeating it does not weaken it. A guest counting the lift down, in the same
+ * hand, in a locked room on all five floors, is worse the second time than the
+ * first, and it is the count the whole descent ends on.
+ */
+const KEPT = {
+  title: "On hotel stationery",
+  lines: [
+    "The lift takes a long time between floors.",
+    "I counted eleven seconds from five to four.",
+    "",
+    "Eleven seconds is a long way down.",
+    "",
+    "I have started writing down what I am sure of.",
+    "It is not a long list.",
+  ],
+};
+
 export function buildFloor(spec: FloorSpec): FloorLayout {
   const { corridorFrom: from, corridorTo: end } = spec;
   const length: [number, number] = [from, end];
@@ -258,6 +323,8 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
   const switches: SwitchSpec[] = [];
   const props: PropSpec[] = [];
   const notes: NoteSpec[] = [];
+  const items: ItemSpec[] = [];
+  const keyedRoom = spec.rooms.find((r) => r.keyed);
 
   for (const spec_ of spec.rooms) {
     const frame: RoomFrame = { side: spec_.side, nearX: OUTER_X, doorZ: spec_.doorZ };
@@ -289,12 +356,98 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
       }),
     );
 
+    // The locked room holds one page and nothing else: no lamp, no furniture,
+    // and no reason to be in there except the thing the key was for.
+    if (spec_.keyed) {
+      const middle = roomCentre(spec_);
+
+      // A telephone on the floor of an empty room. It is here on every floor,
+      // ringing or not, because a fixture that only existed when it rang could
+      // be found by looking rather than by listening.
+      const phone: Vec3 = [middle[0] + spec_.side * 0.5, 0, middle[2] + 0.7];
+      // A room the player has to unlock to look into, so this is the deepest
+      // thing on the floor to miss: they have to have been in here before, on
+      // a floor where nothing was wrong, to know what is not here now.
+      const hasPhone = spec.anomaly?.kind !== "phone-gone";
+      if (hasPhone) props.push({
+        instanceId: `telephone-${spec_.number}`,
+        id: "telephone",
+        position: phone,
+        yaw: spec_.side * Math.PI / 2,
+      });
+      // Art collides through an invisible box, like every other piece, and a
+      // telephone that is not there does not collide either.
+      if (hasPhone) {
+        const [wide, tall, deep] = PROP_SIZES.telephone;
+        boxes.push(boxFromBounds("wood", {
+          x: [phone[0] - deep / 2, phone[0] + deep / 2],
+          y: [0, tall],
+          z: [phone[2] - wide / 2, phone[2] + wide / 2],
+        }, true, false));
+      }
+
+      // A spare cell, in the room the key opens. The page is read once and the
+      // telephone only rings sometimes, so without this the key stops being
+      // worth the walk after the first floor.
+      items.push({
+        instanceId: `cell-${spec.floorNumber}`,
+        id: "battery",
+        keep: false,
+        position: [phone[0] - spec_.side * 0.34, 0.02, phone[2] - 0.22],
+        yaw: spec_.side * Math.PI / 2,
+        label: "cell",
+      });
+
+      notes.push({
+        // Floor free: one per floor, and the notes must compare equal across them.
+        id: "kept-note",
+        position: [middle[0], 0.01, middle[2]],
+        yaw: spec_.side * Math.PI / 2,
+        title: KEPT.title,
+        lines: KEPT.lines,
+      });
+    }
+
     if (!spec_.furnished) continue;
 
     const furnishing = furnishHotelRoom(
       frame, spec_.depth, spec_.width, `room-${spec_.number}`,
       spec.anomaly?.kind,
     );
+    // The key, left on the desk of the room that is open. Named for the door
+    // it opens, so carrying it is the whole of being able to open that door.
+    if (keyedRoom) {
+      const desk = furnishing.props.find((prop) => prop.id === "desk");
+      const on: Vec3 = desk
+        ? [desk.position[0], desk.position[1] + PROP_SIZES.desk[1], desk.position[2]]
+        : [roomCentre(spec_)[0], 0.01, roomCentre(spec_)[2]];
+      // The guest's notebook, beside the key. The page behind the locked door
+      // says he had started writing down what he was sure of; this is what he
+      // was writing in, and it is the only thing in the game that lets the
+      // player do anything at all about an anomaly.
+      items.push({
+        instanceId: `ledger-${spec.floorNumber}`,
+        id: LEDGER,
+        keep: true,
+        position: [on[0], on[1], on[2] + spec_.side * 0.26],
+        yaw: spec_.side * Math.PI / 2,
+        label: "notebook",
+      });
+
+      // The key, gone from the desk it is left on. A player who already has
+      // one loses nothing by it, since the key is kept: for them this is an
+      // empty desk where a key has been every other time. For one who has not
+      // picked it up yet it is the locked room, closed for the floor.
+      if (spec.anomaly?.kind !== "key-gone") items.push({
+        instanceId: `key-${spec.floorNumber}`,
+        id: GUEST_KEY,
+        keep: true,
+        position: on,
+        yaw: spec_.side * Math.PI / 2,
+        label: "room key",
+      });
+    }
+
     boxes.push(...furnishing.boxes);
     extraLamps.push(...furnishing.lamps);
     switches.push(...furnishing.switches);
@@ -386,6 +539,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     props,
     paintings: corridorPaintings(spec),
     notes: [...notes, ...endingNote(spec)],
+    items,
     spawn,
     spawnYaw: start ? (start.side === 1 ? Math.PI / 2 : -Math.PI / 2) : Math.PI,
   };

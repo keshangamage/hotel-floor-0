@@ -39,7 +39,16 @@ export const STAND_HEIGHT = 1.5;
  * same colour as the air. Standing it under a lamp is what makes it a figure
  * rather than a rumour, and the escalation is which lamp.
  */
-export function presenceOn(spec: FloorSpec): Stand | null {
+/**
+ * How deep the player has been before it will stand on the fifth floor.
+ *
+ * The last floor above the one they cannot leave. By then they have judged
+ * every floor of the hotel proper and have nothing left to do up there except
+ * check, which is exactly when checking should stop being safe.
+ */
+export const OPENS_AT = 1;
+
+export function presenceOn(spec: FloorSpec, deepest = Infinity): Stand | null {
   // Ascending z runs from the dead end towards the lift.
   const pools = spec.lamps
     .filter((lamp) => lamp.lit && lamp.z <= spec.corridorTo - LOBBY_CLEARANCE)
@@ -52,6 +61,14 @@ export function presenceOn(spec: FloorSpec): Stand | null {
   const near = pools[pools.length - 1];
 
   switch (spec.floorNumber) {
+    // The fifth, once they have been all the way down and come back up.
+    //
+    // The reference floor. Every judgement they have made rests on it being
+    // the one place nothing happens, and the notebook they are carrying says
+    // in the guest's own hand that this is not the same as it being right.
+    // Far off, and on the floor they started on, so it is almost certainly the
+    // first time they see it at all.
+    case 5: return deepest <= OPENS_AT && far !== undefined ? { x: 0.52, z: far } : null;
     // The length of the corridor away, off to one side, easy to take for a coat.
     case -1: return far === undefined ? null : { x: 0.52, z: far };
     // Halfway, and in the middle of the floor, so it has to be walked around.

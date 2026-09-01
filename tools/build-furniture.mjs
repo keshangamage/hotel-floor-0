@@ -92,6 +92,18 @@ const GLB_PICKS = [
     meshes: "*",
   },
   {
+    id: "telephone",
+    file: "post_apocalyptic_style_retro_telephone.glb",
+    // Body, handset and cord are three meshes, and the cord is most of what
+    // makes it read as a telephone rather than a box.
+    meshes: "*",
+    // Authored about seven times life size. A desk phone with the handset on
+    // it stands around 140mm.
+    targetHeight: 0.14,
+    // 54k triangles for something seen once, on a floor, by torchlight.
+    ratio: 0.25,
+  },
+  {
     id: "wardrobe",
     file: "wooden_shelf.glb",
     // Already upright and in metres at 1.85m, so it needs no scaling.

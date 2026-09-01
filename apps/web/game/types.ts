@@ -79,6 +79,14 @@ export interface DoorSpec {
   /** Room number, for prompts and signage. */
   readonly label?: string;
   /**
+   * An item that opens it, if one does.
+   *
+   * Named on the door rather than worked out from its number, so one key can
+   * open the same room on every floor even though that room is called 503 on
+   * the fifth and 403 on the fourth.
+   */
+  readonly needs?: string;
+  /**
    * Hangs open from the start.
    *
    * "Unlocked" only means a door can be opened, so a corridor of shut doors
@@ -94,6 +102,30 @@ export interface DoorSpec {
    * one the player might have left ajar themselves.
    */
   readonly opensUnwatched?: boolean;
+}
+
+/**
+ * Something the player can pick up and carry.
+ *
+ * A key's id names the door it opens, so carrying "key-507" is the whole of
+ * what it means to be able to open "room-507". No separate table to keep in
+ * step with the layout.
+ */
+export interface ItemSpec {
+  readonly instanceId: string;
+  readonly id: string;
+  /**
+   * Whether it stays with the player.
+   *
+   * A key is kept and works on every floor, so it is remembered by its id. A
+   * cell is used where it is found, so it is remembered by its instance: the
+   * one on the fourth floor is not the one on the third.
+   */
+  readonly keep: boolean;
+  readonly position: Vec3;
+  readonly yaw: number;
+  /** What the prompt calls it. */
+  readonly label: string;
 }
 
 /** An instance of a prop from the imported model library. */
@@ -137,6 +169,15 @@ export interface RoomSpec {
   readonly depth: number;
   /** Locked doors show a prompt but will not open. */
   readonly door: "unlocked" | "locked";
+  /**
+   * The one locked room a key will open.
+   *
+   * Seven of eight doors on a floor can never be opened, and a corridor whose
+   * doors are all scenery is a corridor nobody tries twice. Chosen per hotel
+   * rather than per floor: anything that differs between floors is an anomaly,
+   * and this is not one.
+   */
+  readonly keyed?: boolean;
   /** Unlit rooms stay dark until the player brings a light. */
   readonly lit: boolean;
   /** Furnished rooms get a bed, desk, wardrobe and a window. */
@@ -193,6 +234,7 @@ export interface FloorLayout {
   readonly props: readonly PropSpec[];
   readonly paintings: readonly PaintingSpec[];
   readonly notes: readonly NoteSpec[];
+  readonly items: readonly ItemSpec[];
   /** Where the player's feet start. */
   readonly spawn: Vec3;
   /** Initial camera yaw, in radians. */
