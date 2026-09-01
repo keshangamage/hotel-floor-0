@@ -53,16 +53,33 @@ export function HingedDoor({ spec }: { spec: DoorSpec }) {
     spec.opensUnwatched === true,
   );
 
+  // The door names what opens it, so there is no table to fall out of step.
+  const carrying = useGameStore((state) => state.carrying);
+  const unlockedDoors = useGameStore((state) => state.unlocked);
+  const unlock = useGameStore((state) => state.unlock);
+  const hasKey = spec.needs !== undefined && carrying[spec.needs] === true;
+  const shut = spec.locked && !unlockedDoors[spec.id];
+
   const toggle = useCallback(() => {
-    if (spec.locked) return;
+    // Turning the key is the same motion as opening it: one press, not two.
+    // A door that has to be unlocked and then opened reads as a mechanism.
+    if (shut && hasKey) {
+      unlock(spec.id);
+      setOpen(true);
+      audio.playAt("door", source, { rate: 0.92, gain: 0.95 });
+      return;
+    }
+    if (shut) return;
     const next = !open;
     setOpen(next);
     // Closing drags the same hinge the other way, so it is the same creak a
     // little lower and heavier.
     audio.playAt("door", source, { rate: next ? 1 : 0.88, gain: next ? 0.9 : 1 });
-  }, [spec.locked, open, source]);
+  }, [shut, hasKey, unlock, spec.id, open, source]);
 
-  const prompt = spec.locked ? "Locked" : open ? "Close" : "Open";
+  const prompt = shut
+    ? (hasKey ? "Unlock" : "Locked")
+    : open ? "Close" : "Open";
 
   useFrame((_, delta) => {
     // A swing carries its collider with it, so letting one finish during a

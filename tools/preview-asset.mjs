@@ -6,8 +6,12 @@
  * read off vertex bounds. A model's front is not something to infer from
  * numbers when it can simply be looked at.
  *
- *   node tools/preview-asset.mjs apps/web/public/models/figure.glb out.png [--back]
+ *   node tools/preview-asset.mjs <model.glb> out.png [--back] [--node NAME]
+ *
+ * Auto-fits whatever it is handed, so a 140mm telephone frames the same as a
+ * two metre figure.
  */
+globalThis.self ??= globalThis;
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -22,11 +26,25 @@ await MeshoptDecoder.ready;
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const gltf = await new Promise((res, rej) =>
   loader.parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset+buf.byteLength), "", res, rej));
-const scene = gltf.scene;
+let scene = gltf.scene;
+
+// One piece out of a library, which stacks them all on the origin.
+const only = process.argv.includes("--node") ? process.argv[process.argv.indexOf("--node") + 1] : null;
+if (only) {
+  const picked = scene.getObjectByName(only);
+  if (!picked) throw new Error(`no node named ${only}`);
+  scene = picked;
+}
 scene.updateMatrixWorld(true);
+
 
 const W = 320, H = 520;
 const LIGHT = new THREE.Vector3(-0.45, 0.55, 0.7).normalize();
+// Framed off the model's own bounds, so its units never matter.
+const bounds = new THREE.Box3().setFromObject(scene);
+const extent = bounds.getSize(new THREE.Vector3());
+const middle = bounds.getCenter(new THREE.Vector3());
+const fit = (H - 40) / Math.max(extent.y, extent.x * (H / W), 1e-6);
 const tris = [];
 scene.traverse((o) => {
   if (!o.isMesh) return;
@@ -47,9 +65,9 @@ function render(fromFront, file) {
   const s = fromFront ? 1 : -1;
   for (const { v, col } of tris) {
     const p = v.map(q => ({
-      x: W/2 + s*q.x * (H/2.6),           // fit 2.6m of height
-      y: H - (q.y) * (H/2.6) - 20,
-      z: s*q.z,
+      x: W/2 + s * (q.x - middle.x) * fit,
+      y: H/2 + (middle.y - q.y) * fit,
+      z: s * q.z,
     }));
     const nx = new THREE.Vector3().subVectors(v[1],v[0]).cross(new THREE.Vector3().subVectors(v[2],v[0])).normalize();
     // Lit from off to one side rather than from the camera. A headlight makes

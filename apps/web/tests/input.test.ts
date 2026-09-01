@@ -108,5 +108,43 @@ check("double attach then double detach leaves no listener", !input.isDown("forw
     canvas.indexOf("<Flashlight") > canvas.indexOf("<Player"));
 }
 
+// Every key the game listens for has to be on the screen that lists them.
+// Q was bound to writing a floor down and never added to that list, which made
+// the notebook a thing the player could carry and not use.
+{
+  const { readFileSync } = await import("node:fs");
+  const bindings = readFileSync("apps/web/game/systems/input.ts", "utf8");
+  const overlay = readFileSync("apps/web/components/ui/Overlay.tsx", "utf8");
+
+  const listed = [...overlay.matchAll(/\["([^"]+)",\s*"[^"]+"\]/g)].map((m) => m[1]!);
+  check("the pause screen lists some controls", listed.length >= 5, listed.join(" "));
+
+  // Letter keys, minus the ones a group entry already covers.
+  const COVERED = new Map([["W", "WASD"], ["A", "WASD"], ["S", "WASD"], ["D", "WASD"], ["C", "Ctrl"]]);
+  const bound = [...bindings.matchAll(/\bKey([A-Z]):/g)].map((m) => m[1]!);
+  const undocumented = [...new Set(bound)].filter((letter) => {
+    const under = COVERED.get(letter) ?? letter;
+    return !listed.includes(under);
+  });
+  check("and every key that is bound is one of them", undocumented.length === 0,
+    undocumented.join(", ") || `${new Set(bound).size} keys`);
+}
+
+// The rule is written down exactly once, in the guest's hand, and the notebook
+// hands it over the moment it is picked up.
+{
+  const { readFileSync } = await import("node:fs");
+  const { FIRST_PAGE } = await import("../game/data/floor");
+  const words = FIRST_PAGE.lines.join(" ");
+
+  check("the notebook explains what the floors are",
+    /same floor/i.test(words), FIRST_PAGE.title);
+  check("and which key writes one down", /\bQ\b/.test(words));
+  check("and it opens itself when picked up",
+    /spec\.id === LEDGER\) read\(FIRST_PAGE\)/.test(
+      readFileSync("apps/web/components/environment/Item.tsx", "utf8")),
+    "a rule nobody reads is a rule nobody has");
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

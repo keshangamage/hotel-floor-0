@@ -137,5 +137,39 @@ const looking = (dx: number, dz: number): Watcher => {
     "a scene export carries the room it was authored in");
 }
 
+// The fifth floor, eventually.
+//
+// Every judgement the player makes rests on the reference floor being the one
+// place nothing happens, and the notebook they are carrying says in the
+// guest's hand that this is not the same as it being right. It is the one
+// promise the game had made and not kept.
+{
+  const { OPENS_AT } = await import("../game/systems/presence");
+  const fifth = generateFloor(5);
+
+  check("the fifth floor is empty on the way down",
+    [5, 4, 3, 2].every((deepest) => presenceOn(fifth, deepest) === null),
+    "every judgement above it depends on that");
+  check("and stays empty until the bottom of the hotel",
+    presenceOn(fifth, OPENS_AT + 1) === null, `deepest ${OPENS_AT + 1}`);
+  check("and then it is not", presenceOn(fifth, OPENS_AT) !== null,
+    `once the player has walked floor ${OPENS_AT}`);
+  check("and still is not, further down", presenceOn(fifth, -3) !== null);
+
+  // It obeys the same rules as the rest: in the light, clear of the doors.
+  const stand = presenceOn(fifth, OPENS_AT)!;
+  check("it stands in a pool of light like the others",
+    fifth.lamps.some((lamp) => lamp.lit && Math.abs(lamp.z - stand.z) < 0.01));
+  check("and far enough from the lift to be seen before it goes",
+    fifth.corridorTo - stand.z >= TOO_CLOSE,
+    `${(fifth.corridorTo - stand.z).toFixed(1)}m from the doors`);
+
+  // Only the fifth. The floors between are the ones being judged, and a figure
+  // on one of them would be a difference the player cannot write down.
+  const between = [4, 3, 2, 1, 0].filter((f) => presenceOn(generateFloor(f), -3) !== null);
+  check("and no other floor of the hotel gains one", between.length === 0,
+    between.join(", ") || "four floors and the ground");
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

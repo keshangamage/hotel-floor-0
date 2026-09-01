@@ -15,6 +15,37 @@ interface GameState {
   seed: string;
   /** Verb for whatever the crosshair is on, or null. */
   interactPrompt: string | null;
+  /**
+   * What the player is carrying. Keys are named for the door they open.
+   *
+   * Kept in the store rather than on the floor layout because it outlives the
+   * floor: the whole point of picking something up is that it comes with you
+   * when the lift doors close.
+   */
+  carrying: Readonly<Record<string, true>>;
+  /** Doors opened with a key. A door does not lock itself again. */
+  unlocked: Readonly<Record<string, true>>;
+  /**
+   * Floors the player has written down as wrong, and floors they have walked.
+   *
+   * The anomalies are the largest thing in the game and until now the player
+   * could only look at them. This is what they can do about one: say so, and
+   * be told at the end whether they were right. Keyed by floor as a string,
+   * because that is what a saved object holds anyway.
+   */
+  marked: Readonly<Record<string, true>>;
+  visited: Readonly<Record<string, true>>;
+  /** Things used up where they were found, by instance. */
+  spent: Readonly<Record<string, true>>;
+  /**
+   * What is left in the torch, 1 to 0.
+   *
+   * Written coarsely rather than every frame: the beam reads its own value
+   * from a ref, and this is the copy that survives a reload and drives the
+   * warning. Pushing 60 updates a second through the store would re-render the
+   * tree for a number that changes in the third decimal place.
+   */
+  torch: number;
   /** Lights that have been switched off. Absent means on. */
   lightsOff: Readonly<Record<string, true>>;
   /** Timestamp of the last pause, used to time the pointer-lock cooldown. */
@@ -54,6 +85,12 @@ interface GameState {
   setPhase: (phase: GamePhase) => void;
   setInteractPrompt: (prompt: string | null) => void;
   toggleLight: (id: string) => void;
+  take: (id: string) => void;
+  unlock: (id: string) => void;
+  spend: (id: string) => void;
+  mark: (floor: number) => void;
+  setTorch: (charge: number) => void;
+  recharge: () => void;
   setFloorNumber: (floor: number) => void;
   toggleFlashlight: () => void;
   readNote: (note: NoteSpec | null) => void;
@@ -74,6 +111,12 @@ export const useGameStore = create<GameState>()(
       floorNumber: 5,
       seed: DEFAULT_SEED,
       interactPrompt: null,
+      carrying: {},
+      unlocked: {},
+      spent: {},
+      marked: {},
+      visited: {},
+      torch: 1,
       lightsOff: {},
       pausedAt: 0,
       trapped: false,
@@ -88,7 +131,28 @@ export const useGameStore = create<GameState>()(
       setPhase: (phase) =>
         set(phase === "paused" ? { phase, pausedAt: Date.now() } : { phase }),
       setInteractPrompt: (interactPrompt) => set({ interactPrompt }),
-      setFloorNumber: (floorNumber) => set({ floorNumber }),
+      // Arriving is what counts as walking a floor, so the tally at the end
+      // can tell a floor missed from one never reached.
+      setFloorNumber: (floorNumber) =>
+        set((state) => ({
+          floorNumber,
+          visited: { ...state.visited, [String(floorNumber)]: true },
+        })),
+      take: (id) => set((state) => ({ carrying: { ...state.carrying, [id]: true } })),
+      unlock: (id) => set((state) => ({ unlocked: { ...state.unlocked, [id]: true } })),
+      spend: (id) => set((state) => ({ spent: { ...state.spent, [id]: true } })),
+      // Written down, or crossed out again: a player who changes their mind
+      // about a floor is doing the thing the game is about.
+      mark: (floor) =>
+        set((state) => {
+          const next = { ...state.marked };
+          const at = String(floor);
+          if (next[at]) delete next[at];
+          else next[at] = true;
+          return { marked: next };
+        }),
+      setTorch: (torch) => set({ torch }),
+      recharge: () => set({ torch: 1 }),
       toggleLight: (id) =>
         set((state) => {
           const next = { ...state.lightsOff };
@@ -96,7 +160,10 @@ export const useGameStore = create<GameState>()(
           else next[id] = true;
           return { lightsOff: next };
         }),
-      toggleFlashlight: () => set((state) => ({ flashlightOn: !state.flashlightOn })),
+      // A flat torch does not come on, and saying so is the switch clicking
+      // and nothing happening, which is what a flat torch does.
+      toggleFlashlight: () =>
+        set((state) => ({ flashlightOn: state.flashlightOn ? false : state.torch > 0 })),
       readNote: (reading) => set({ reading }),
       // Once only, and never undone: the lift does not start working again.
       setTrapped: () => set({ trapped: true }),
@@ -114,6 +181,12 @@ export const useGameStore = create<GameState>()(
         trapped: false,
         offered: null,
         lightsOff: {},
+        carrying: {},
+        unlocked: {},
+        spent: {},
+        marked: {},
+        visited: {},
+        torch: 1,
         reading: null,
         interactPrompt: null,
         run: state.run + 1,
@@ -146,6 +219,12 @@ export const useGameStore = create<GameState>()(
       partialize: (state) => ({
         seed: state.seed,
         floorNumber: state.floorNumber,
+        carrying: state.carrying,
+        unlocked: state.unlocked,
+        spent: state.spent,
+        marked: state.marked,
+        visited: state.visited,
+        torch: state.torch,
         trapped: state.trapped,
         offered: state.offered,
         volume: state.volume,

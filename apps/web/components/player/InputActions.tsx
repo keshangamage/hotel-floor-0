@@ -1,5 +1,6 @@
 import { useFrame } from "@react-three/fiber";
 
+import { LEDGER } from "@/game/data/floor";
 import { input } from "@/game/systems/input";
 import { useGameStore } from "@/store/useGameStore";
 
@@ -9,7 +10,8 @@ import { useGameStore } from "@/store/useGameStore";
  */
 export function InputActions() {
   useFrame(() => {
-    const { phase, toggleFlashlight, reading, readNote } = useGameStore.getState();
+    const state = useGameStore.getState();
+    const { phase, toggleFlashlight, reading, readNote } = state;
     if (phase !== "playing") return;
 
     // A note is put down with the same key that picked it up. Consuming the
@@ -20,6 +22,12 @@ export function InputActions() {
     }
 
     if (input.consumePress("flashlight")) toggleFlashlight();
+
+    // Only with the notebook in hand. Without it there is nothing to write in,
+    // and a player who never found it is not quietly keeping a tally anyway.
+    if (input.consumePress("record") && state.carrying[LEDGER]) {
+      state.mark(state.floorNumber);
+    }
   });
 
   return null;

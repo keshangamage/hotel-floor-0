@@ -110,9 +110,14 @@ const reset = () => useGameStore.setState({ trapped: false, offered: null, floor
     check(`${what} stops when the game is paused`, gated(read(file)));
   }
 
-  check("the torch and the flicker are left alone",
-    !gated(read("lighting/CeilingLamp.tsx")) && !gated(read("player/Flashlight.tsx")),
+  // A flickering fixture is purely visual, behind an opaque overlay, and
+  // costs the player nothing to leave running.
+  check("a flickering lamp is left alone", !gated(read("lighting/CeilingLamp.tsx")),
     "purely visual, behind an opaque overlay");
+  // The torch used to be in that list. It burns a cell now, so a paused game
+  // that kept draining it would take something from a player who is not there.
+  check("but the torch stops, because it is spending something",
+    gated(read("player/Flashlight.tsx")));
 }
 
 // A device that cannot play must be told so, not left looking at a black

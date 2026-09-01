@@ -13,6 +13,7 @@ const CONTROLS = [
   ["Ctrl", "Crouch"],
   ["E", "Interact"],
   ["F", "Flashlight"],
+  ["Q", "Write down this floor"],
   ["Esc", "Pause"],
 ];
 
@@ -56,6 +57,19 @@ export function Overlay() {
         <h1 className="font-mono text-2xl font-light uppercase tracking-[0.55em] text-neutral-300 sm:text-3xl">
           Hotel Floor 0
         </h1>
+
+        {/* Said once, on the way in. Enough that a player knows what they are
+            being asked to do, and not so much that it does the asking for
+            them: which floor is wrong is never the game's to say. */}
+        {phase === "menu" && (
+          <p className="max-w-sm font-mono text-[0.62rem] leading-[2.1] tracking-[0.16em] text-neutral-600">
+            You are a guest on the fifth floor.
+            <span className="mt-2 block">
+              The lift goes down. Every floor it opens on is the same floor,
+              until one of them is not.
+            </span>
+          </p>
+        )}
 
         <p
           className={[

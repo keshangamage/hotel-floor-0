@@ -708,6 +708,56 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * A telephone, two rooms away and behind a shut door.
+   *
+   * Twin bell rather than a tone: a hammer swinging between two gongs, which
+   * is a pair of detuned partials struck alternately about twenty times a
+   * second. An electronic warble would date the hotel to the wrong century,
+   * and this one still has notices about breakfast in it.
+   *
+   * Returns the length of the burst so the caller can leave the right silence
+   * after it. The silence is most of the effect: a phone that rang constantly
+   * would be a machine, and one that stops makes the player wonder whether it
+   * was answered.
+   */
+  telephone(position: readonly [number, number, number]): number {
+    const context = this.ensure();
+    const out = this.route(position);
+    if (!context || !out) return 0;
+
+    const now = context.currentTime;
+    const RING = 1.6;
+    const STRIKES = 34;
+
+    const shell = context.createBiquadFilter();
+    shell.type = "bandpass";
+    shell.frequency.value = 1500;
+    shell.Q.value = 0.9;
+    shell.connect(out);
+
+    for (let i = 0; i < STRIKES; i += 1) {
+      const at = now + (i * RING) / STRIKES;
+      // The hammer alternates, so the two gongs never sound together.
+      const gong = i % 2 === 0 ? 1 : 1.06;
+
+      for (const [ratio, level] of [[1, 0.05], [2.71, 0.03], [5.4, 0.014]] as const) {
+        const bell = context.createOscillator();
+        bell.type = "sine";
+        bell.frequency.value = 1050 * gong * ratio;
+        const gain = context.createGain();
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(level, at + 0.003);
+        // Struck again before it has died, which is what makes it a trill.
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.09);
+        bell.connect(gain).connect(shell);
+        bell.start(at);
+        bell.stop(at + 0.1);
+      }
+    }
+    return RING;
+  }
+
   dispose(): void {
     for (const voice of [...this.voices]) voice.stop();
     this.voices.clear();

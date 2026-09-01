@@ -40,7 +40,14 @@ const watcher: Watcher = { at: { x: 0, y: 0, z: 0 }, facing: { x: 0, y: 0, z: -1
  */
 export function Figure({ spec }: { spec: FloorSpec }) {
   const camera = useThree((state) => state.camera);
-  const stand = useMemo(() => presenceOn(spec), [spec]);
+  // The deepest floor walked so far. Read from what has been visited rather
+  // than stored separately, so a save carries it without a second field.
+  const visited = useGameStore((state) => state.visited);
+  const deepest = useMemo(
+    () => Math.min(...Object.keys(visited).map(Number).filter(Number.isFinite), Infinity),
+    [visited],
+  );
+  const stand = useMemo(() => presenceOn(spec, deepest), [spec, deepest]);
 
   const { scene } = useGLTF(FIGURE_URL, false);
   // Cloned rather than used directly: drei hands out one cached scene, and a

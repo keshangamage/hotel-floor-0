@@ -1,7 +1,8 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
+import { drain, waver } from "@/game/systems/torch";
 import { useGameStore } from "@/store/useGameStore";
 
 /** Cool, so the player's own light reads apart from the hotel's warm tungsten. */
@@ -12,6 +13,10 @@ const OFFSET_RIGHT = 0.22;
 const OFFSET_DOWN = 0.2;
 /** Aim far ahead: a near target swings the cone wildly as the player turns. */
 const THROW = 12;
+/** Full brightness. Scaled by whatever is left in the cell. */
+const INTENSITY = 60;
+/** How often the live charge is written back to the store, in seconds. */
+const REPORT_EVERY = 2;
 
 // Reused every frame so the loop stays allocation free.
 const direction = new THREE.Vector3();
@@ -31,10 +36,36 @@ export function Flashlight() {
   const camera = useThree((state) => state.camera);
   const light = useRef<THREE.SpotLight>(null);
   const target = useMemo(() => new THREE.Object3D(), []);
+  // The live value. The store holds a coarse copy for the warning and the save.
+  const charge = useRef(useGameStore.getState().torch);
+  const sinceReport = useRef(0);
 
-  useFrame(() => {
+  // A fresh cell, or a save coming back. The frame loop only ever drains, so
+  // anything that puts charge in has to reach the live value this way.
+  const stored = useGameStore((state) => state.torch);
+  useEffect(() => {
+    if (stored > charge.current) charge.current = stored;
+  }, [stored]);
+
+  useFrame((state, delta) => {
     const spot = light.current;
     if (!spot || !on) return;
+
+    const store = useGameStore.getState();
+    if (store.phase === "playing") {
+      const step = Math.min(delta, 0.05);
+      charge.current = drain(charge.current, step, true);
+      spot.intensity = INTENSITY * waver(charge.current, state.clock.elapsedTime);
+
+      sinceReport.current += step;
+      if (sinceReport.current >= REPORT_EVERY || charge.current === 0) {
+        sinceReport.current = 0;
+        if (store.torch !== charge.current) store.setTorch(charge.current);
+        // A torch that has gone out is off, not on and dark: the switch has to
+        // mean something the next time it is pressed.
+        if (charge.current === 0 && store.flashlightOn) store.toggleFlashlight();
+      }
+    }
 
     camera.getWorldDirection(direction);
     right.crossVectors(direction, UP).normalize();

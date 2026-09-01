@@ -7,6 +7,7 @@ import { Doors } from "@/components/environment/Doors";
 import { Figure } from "@/components/horror/Figure";
 import { Elevator } from "@/components/environment/Elevator";
 import { FloorGeometry } from "@/components/environment/FloorGeometry";
+import { Items } from "@/components/environment/Item";
 import { Notes } from "@/components/environment/Note";
 import { Paintings } from "@/components/environment/Paintings";
 import { Props } from "@/components/environment/Props";
@@ -56,6 +57,7 @@ function Scene() {
           }
         />
         <Notes notes={layout.notes} />
+        <Items items={layout.items} />
         {/* Doors register their frame callback before the player, so
             colliders are already positioned when movement resolves. */}
         <Doors layout={layout} />

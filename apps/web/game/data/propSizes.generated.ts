@@ -10,6 +10,7 @@ export const PROP_SIZES = {
   "desk": [1.5512, 0.6999, 0.9117],
   "nightstand": [0.7858, 0.8274, 0.5609],
   "rug": [3.5911, 0.0167, 2.2338],
+  "telephone": [0.3821, 0.1398, 0.2399],
   "wardrobe": [0.8329, 1.8495, 0.4166],
   "window": [2.0017, 1.2304, 0.2219],
 } as const satisfies Record<string, Vec3>;
