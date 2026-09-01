@@ -1,23 +1,18 @@
+import { useAnimations, useGLTF } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 import { distanceTo, isFacing, type Watcher } from "@/game/systems/observation";
 import { LINGER, STAND_HEIGHT, TOO_CLOSE, presenceOn } from "@/game/systems/presence";
 import type { FloorSpec } from "@/game/types";
 import { useGameStore } from "@/store/useGameStore";
 
-// One person, built once. Legs to shoulders, and a head.
-const BODY = new THREE.CapsuleGeometry(0.2, 1.05, 4, 12);
-const SHOULDERS = new THREE.BoxGeometry(0.46, 0.15, 0.25);
-const HEAD = new THREE.SphereGeometry(0.115, 14, 12);
+export const FIGURE_URL = "/models/figure.glb";
 
-/**
- * Lit, not unlit. A pure black shape would be invisible against fog this dark,
- * and a self-lit one would be a ghost. This is a person in a corridor: the
- * lamp above finds them, and so does the torch.
- */
-const SKIN = new THREE.MeshStandardMaterial({ color: "#0c0c0f", roughness: 1 });
+/** It hangs in the air and drifts. The other clip turns it to look at you. */
+const IDLE = "idle_up_down";
 
 // Reused every frame so the loop stays allocation free.
 const forward = new THREE.Vector3();
@@ -36,9 +31,33 @@ const watcher: Watcher = { at: { x: 0, y: 0, z: 0 }, facing: { x: 0, y: 0, z: -1
  */
 export function Figure({ spec }: { spec: FloorSpec }) {
   const camera = useThree((state) => state.camera);
+  const phase = useGameStore((state) => state.phase);
   const stand = useMemo(() => presenceOn(spec), [spec]);
+
+  const { scene, animations } = useGLTF(FIGURE_URL, false);
+  // Cloned rather than used directly: drei hands out one cached scene, and a
+  // floor change mounts the next figure before the last one has let go of it.
+  // SkeletonUtils rebinds the skeleton, which a plain clone does not.
+  const model = useMemo(() => clone(scene), [scene]);
+  const { actions, mixer } = useAnimations(animations, model);
+
   const group = useRef<THREE.Group>(null);
   const seen = useRef({ facing: false, held: 0, gone: false });
+
+  useEffect(() => {
+    actions[IDLE]?.reset().play();
+  }, [actions]);
+
+  // The mixer runs on drei's own frame loop, which does not know about the
+  // menu, so a paused game leaves it drifting. Held in a ref because the
+  // compiler treats a hook's return value as something it owns.
+  const clock = useRef<THREE.AnimationMixer | null>(null);
+  useEffect(() => {
+    clock.current = mixer;
+  }, [mixer]);
+  useEffect(() => {
+    if (clock.current) clock.current.timeScale = phase === "playing" ? 1 : 0;
+  }, [phase]);
 
   useFrame((_, delta) => {
     const node = group.current;
@@ -75,10 +94,15 @@ export function Figure({ spec }: { spec: FloorSpec }) {
   if (!stand) return null;
 
   return (
-    <group ref={group} position={[stand.x, 0, stand.z]}>
-      <mesh geometry={BODY} material={SKIN} position={[0, 0.85, 0]} />
-      <mesh geometry={SHOULDERS} material={SKIN} position={[0, 1.42, 0]} />
-      <mesh geometry={HEAD} material={SKIN} position={[0, 1.66, 0]} />
+    // Turned away from the lift, so the player only ever gets its back.
+    //
+    // It has a face. They do not see it: looking straight at this thing is
+    // what makes it not be there, so the one view of it anybody gets is from
+    // behind, standing in the light, not turning round.
+    <group ref={group} position={[stand.x, 0, stand.z]} rotation={[0, Math.PI, 0]}>
+      <primitive object={model} />
     </group>
   );
 }
+
+useGLTF.preload(FIGURE_URL, false);

@@ -107,5 +107,33 @@ const looking = (dx: number, dz: number): Watcher => {
     "the ending is the answer, not another scare");
 }
 
+// The model it is drawn with. Converting the source strips the rig if the
+// wrong transform runs, and a GLB that has lost its skin still loads, still
+// renders, and simply stands there, which is not something the game reports.
+{
+  const { NodeIO } = await import("@gltf-transform/core");
+  const nodeNames = (root: { listNodes(): { getMesh(): unknown; getName(): string }[] }) =>
+    root.listNodes().filter((n) => n.getMesh()).map((n) => n.getName());
+  const doc = await new NodeIO().read("apps/web/public/models/figure.glb");
+  const root = doc.getRoot();
+  check("the figure ships with its rig", root.listSkins().length === 1,
+    "without it the idle plays over a mesh that cannot move");
+  const clips = root.listAnimations().map((a) => a.getName());
+  check("and with the clip it is drawn playing", clips.includes("idle_up_down"),
+    clips.join(", ") || "none");
+
+  // The download has no textures at all, so the look is materials and the two
+  // eyes are geometry. Both of those merge back into one flat grey if the
+  // colouring is ever dropped from the build.
+  const materials = root.listMaterials().map((m) => m.getName());
+  check("it is not the grey it arrives as",
+    ["Cloth", "Eye"].every((name) => materials.includes(name)),
+    materials.join(", "));
+  check("and the hat is off it", !nodeNames(root).includes("Hat"), "it is a hooded shape now");
+  const nodes = nodeNames(root);
+  check("and it has eyes", nodes.includes("EyeLeft") && nodes.includes("EyeRight"),
+    nodes.join(", "));
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

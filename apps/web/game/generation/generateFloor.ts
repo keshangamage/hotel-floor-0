@@ -58,6 +58,19 @@ function groundFloor(seed: string): FloorSpec {
     });
   }
 
+  // A light over the dead end.
+  //
+  // Without it the one thing on this floor lies in the dark past the last
+  // fixture, and a player who walks the whole corridor finds nothing and turns
+  // back. It is also the reason to walk it at all: a lit end to a long dark
+  // corridor is the only thing here to aim at, and this floor has no doors,
+  // no numbers and a lift that has stopped answering.
+  lamps.push({
+    z: to - 1 - (FIXTURES - 1) * ROOM_PITCH - 2.6,
+    castShadow: false,
+    lit: true,
+  });
+
   return {
     floorNumber: ENDING_FLOOR,
     seed,

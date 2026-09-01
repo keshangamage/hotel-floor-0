@@ -1,6 +1,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { PLATE, panelButtons } from "@/game/data/panel";
 import {
   CAR_CENTRE,
   DISPLAY_POSITION,
@@ -163,42 +164,59 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
 
       {/* Interior panel. */}
       <group position={PANEL_POSITION} rotation={[0, -Math.PI / 2, 0]}>
-        <mesh geometry={UNIT_BOX} material={MATERIALS.metal} scale={[0.17, 0.56, 0.02]} />
-        {/* An ordinary hotel panel. Pressing 0 is the accident the whole
-            game turns on, so it sits among the others rather than apart. */}
-        {ELEVATOR_CONFIG.servedFloors
-          .filter((floor) => floor >= 0)
-          .map((floor, index) => (
-            <PanelButton
-              key={floor}
-              position={[0, 0.22 - index * 0.072, 0.014]}
-              prompt={trapped ? "The button does not light" : `Floor ${floor}`}
-              onPress={() => press(floor)}
-              lit={!trapped && readout === floor}
-              active={!trapped}
-            />
-          ))}
-
-        {/* A button under the others that was not there before. The panel is
-            dead except for this one, so the hotel is the thing choosing where
-            the player goes, and it only ever chooses further down. */}
-        {trapped && offered !== null ? (
-          <PanelButton
-            position={[0, 0.22 - ELEVATOR_CONFIG.servedFloors.filter((f) => f >= 0).length * 0.072, 0.014]}
-            prompt={`Floor ${floorLabel(offered)}`}
-            onPress={() => press(offered)}
-            lit
-            active
-            color="#8fb0ff"
-          />
-        ) : null}
-
-        <PanelButton
-          position={[0, -0.21, 0.014]}
-          prompt="Close doors"
-          onPress={() => closeDoors(elevator.current)}
-          color="#8fb0ff"
+        <mesh
+          geometry={UNIT_BOX}
+          material={MATERIALS.metal}
+          scale={[PLATE.width, PLATE.height, PLATE.depth]}
         />
+        {panelButtons(ELEVATOR_CONFIG.servedFloors, trapped, offered).map((row) => {
+          const at: [number, number, number] = [row.x, row.y, 0.014];
+
+          // An ordinary hotel panel. Pressing 0 is the accident the whole game
+          // turns on, so it sits among the others rather than apart.
+          if (row.kind === "floor") {
+            return (
+              <PanelButton
+                key={row.id}
+                position={at}
+                prompt={trapped ? "The button does not light" : `Floor ${row.floor}`}
+                onPress={() => press(row.floor ?? 0)}
+                lit={!trapped && readout === row.floor}
+                active={!trapped}
+              />
+            );
+          }
+
+          // A button under the others that was not there before. The panel is
+          // dead except for this one, so the hotel is the thing choosing where
+          // the player goes, and it only ever chooses further down.
+          if (row.kind === "offered") {
+            return (
+              <PanelButton
+                key={row.id}
+                position={at}
+                prompt={`Floor ${floorLabel(row.floor ?? 0)}`}
+                onPress={() => press(row.floor ?? 0)}
+                lit
+                active
+                color="#8fb0ff"
+              />
+            );
+          }
+
+          // The door pair. Never dead, whatever the rest of the panel is
+          // doing: the only other way to open these doors is the plate in the
+          // lobby, and a player shut in the car cannot reach it.
+          return (
+            <PanelButton
+              key={row.id}
+              position={at}
+              prompt={row.kind === "open" ? "Open doors" : "Close doors"}
+              onPress={row.kind === "open" ? call : () => closeDoors(elevator.current)}
+              color="#8fb0ff"
+            />
+          );
+        })}
       </group>
 
       {/* Car ceiling light. */}
