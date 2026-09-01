@@ -23,9 +23,6 @@ const CONTROLS = [
 export function Overlay() {
   const phase = useGameStore((state) => state.phase);
   const pausedAt = useGameStore((state) => state.pausedAt);
-  const best = useGameStore((state) => state.best);
-  const finished = useGameStore((state) => state.finished);
-  const depth = useGameStore((state) => state.depth);
   const volume = useGameStore((state) => state.volume);
   const sensitivity = useGameStore((state) => state.sensitivity);
   const setVolume = useGameStore((state) => state.setVolume);
@@ -71,14 +68,6 @@ export function Overlay() {
               ? "Click to resume"
               : "Paused"}
         </p>
-
-        {(best > 0 || depth > 0) && (
-          <p className="font-mono text-[0.6rem] uppercase tracking-[0.3em] text-neutral-600">
-            {depth > 0 ? `On floor ${5 - depth} · ` : ""}
-            Deepest floor {5 - best}
-            {finished > 0 ? ` · Reached zero ${finished}×` : ""}
-          </p>
-        )}
 
         {/* The overlay is the pointer lock target, so a click that lands here
             would lock the pointer and shut the menu. Stop it at the slider. */}

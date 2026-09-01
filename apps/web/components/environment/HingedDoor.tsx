@@ -1,5 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useCallback, useMemo, useRef, useState } from "react";
+
+import { useLookAway } from "@/components/horror/LookAway";
 import * as THREE from "three";
 
 import { useDynamicCollider } from "@/components/game/Colliders";
@@ -25,6 +27,30 @@ export function HingedDoor({ spec }: { spec: DoorSpec }) {
   const source = useMemo<[number, number, number]>(
     () => [spec.hinge[0], 1.05, spec.hinge[2] + spec.width / 2],
     [spec.hinge, spec.width],
+  );
+
+  // The same place as the sound, in the shape the watcher wants.
+  const watchAt = useMemo(
+    () => ({ x: source[0], y: source[1], z: source[2] }),
+    [source],
+  );
+
+  /**
+   * A locked door that opens itself the moment nobody is watching it.
+   *
+   * Once only: a door that kept swinging would read as a mechanism, and the
+   * whole of it is that the player passed a shut door and came back to an open
+   * one. It uses the same swing as a door the player opens, so it is already
+   * open by the time they turn round rather than caught in the act.
+   */
+  useLookAway(
+    watchAt,
+    () => {
+      if (open) return;
+      setOpen(true);
+      audio.playAt("door", source, { rate: 0.84, gain: 0.75 });
+    },
+    spec.opensUnwatched === true,
   );
 
   const toggle = useCallback(() => {

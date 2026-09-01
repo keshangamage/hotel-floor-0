@@ -352,9 +352,6 @@ check("the reference floor is never anomalous",
     /displayWrong = anomaly\?\.kind === "display-wrong"/.test(lift));
   check("and the indicator reads out by one",
     /displayWrong \? readout \+ 1 : readout/.test(lift));
-  // The description travels with the call, so a lost run can say what it was.
-  check("and hands on what the floor was when judging",
-    /recordCall\(verdict, anomaly\?\.description \?\? null\)/.test(lift));
 
   // The doors still carry the true floor in their numbers, which is the only
   // way the player can catch it.
@@ -604,6 +601,129 @@ check("the reference floor is never anomalous",
   }
   check("every hotel shows exactly one open door", wrong.length === 0,
     wrong.slice(0, 3).join(", ") || "200 hotels");
+}
+
+// The first anomaly of the brief's kind: one that happens while the player is
+// turned away rather than being so from the moment the floor is built.
+{
+  const { readFileSync } = await import("node:fs");
+  const read = (f: string) => readFileSync(`apps/web/${f}`, "utf8");
+
+  // It cannot change the plan: nothing is different until the player has
+  // looked at it, looked away, and looked back.
+  const clean = buildFloor(generateFloor(REFERENCE_FLOOR));
+  const creeping = buildFloor(applyAnomaly(generateFloor(REFERENCE_FLOOR),
+    { kind: "chair-creeps", target: 0, description: "x" }));
+  check("a creeping chair leaves the floor as it was",
+    JSON.stringify(clean.boxes) === JSON.stringify(creeping.boxes)
+    && JSON.stringify(clean.props) === JSON.stringify(creeping.props));
+
+  // But something has to render it differently, or nothing ever moves.
+  const props = read("components/environment/Props.tsx");
+  check("the chair is rendered as a creeping piece", /"chair-creeps": "chair"/.test(props));
+  check("and only on the floor that carries it", /wrong \? CREEPS\[wrong\]/.test(props));
+
+  const creep = read("components/horror/Creeping.tsx");
+  // It moves only while unwatched, which is the whole trick.
+  check("it moves on the look away", /useLookAway\(/.test(creep));
+  // Small and bounded: a chair not quite where it was, not one across the room.
+  const step = Number(/const STEP = ([\d.]+)/.exec(creep)?.[1] ?? 0);
+  const limit = Number(/const LIMIT = ([\d.]+)/.exec(creep)?.[1] ?? 0);
+  check("it moves a little at a time", step > 0 && step < 0.25, `${step}m a turn`);
+  check("and never gets far", limit > step && limit < 1, `${limit}m at most`);
+  // A slide without a turn reads as a physics bug.
+  check("it turns as well as shifts", /rotation\.y/.test(creep));
+
+  // The watcher must not count a paused game as looking away.
+  check("a paused game is not a look away",
+    /phase !== "playing"/.test(read("components/horror/LookAway.tsx")));
+
+  // Hardest tier: the player has to have looked at it once to know it moved.
+  check("it is held back to the deepest floors",
+    /"chair-creeps": 3/.test(read("game/systems/anomaly.ts")));
+}
+
+// The brief's door: closed when the player passes it, open when they look
+// back. The second of the kind that happens rather than simply being so.
+{
+  const { readFileSync } = await import("node:fs");
+  const clean = buildFloor(generateFloor(REFERENCE_FLOOR));
+  const opening = buildFloor(applyAnomaly(generateFloor(REFERENCE_FLOOR),
+    { kind: "door-opens", target: 2, description: "x" }));
+
+  const marked = opening.doors.filter((d) => d.opensUnwatched);
+  check("exactly one door will open itself", marked.length === 1, `${marked.length}`);
+
+  // A locked one. An unlocked door standing open is a door the player might
+  // have left that way themselves.
+  check("and it is one that could not have been opened",
+    marked[0]?.locked === true, marked[0]?.locked ? "locked" : "unlocked");
+
+  // Shut to begin with, or there is nothing to notice.
+  check("it starts shut", marked[0]?.startsOpen !== true);
+  check("no door does this normally", clean.doors.every((d) => !d.opensUnwatched));
+
+  // The rest of the floor is untouched: nothing differs until it happens.
+  check("the floor plan is as it was",
+    JSON.stringify(clean.boxes) === JSON.stringify(opening.boxes));
+
+  const door = readFileSync("apps/web/components/environment/HingedDoor.tsx", "utf8");
+  check("it opens on the look away", /useLookAway\(/.test(door));
+  // Once. A door that kept swinging reads as a mechanism rather than an event.
+  check("and only once", /if \(open\) return;/.test(door));
+  // Heard as well as seen, since the player is by definition facing away.
+  check("and is heard, since the player is turned away",
+    /audio\.playAt\("door", source/.test(door));
+  check("it only does this where the floor says so",
+    /spec\.opensUnwatched === true/.test(door));
+}
+
+// The brief's third example: a picture that changes after the player passes
+// it. The last of the ones it names, and the third that happens rather than
+// simply being so.
+{
+  const { readFileSync, existsSync } = await import("node:fs");
+  const clean = buildFloor(generateFloor(REFERENCE_FLOOR));
+  const turning = buildFloor(applyAnomaly(generateFloor(REFERENCE_FLOOR),
+    { kind: "painting-turns", target: 1, description: "x" }));
+
+  // Nothing differs until it happens: the picture that will change is the
+  // picture that was hanging there.
+  check("the corridor starts as it was",
+    JSON.stringify(clean.paintings) === JSON.stringify(turning.paintings),
+    `${clean.paintings.length} pictures`);
+
+  const changing = readFileSync("apps/web/components/horror/Changing.tsx", "utf8");
+  check("it changes on the look away", /useLookAway\(/.test(changing));
+  // Forward only. A picture that changed and changed back is a picture the
+  // player was simply wrong about.
+  check("and never back to the one that was there",
+    /current \+ 1/.test(changing) && !/setArt\(spec\.art\)/.test(changing));
+  // The frame must not move, or it reads as the wall changing rather than the
+  // picture in it.
+  check("the frame stays where it is", /\{ \.\.\.spec, art \}/.test(changing));
+
+  const list = readFileSync("apps/web/components/environment/Paintings.tsx", "utf8");
+  check("only one picture changes", /i === turning \?/.test(list));
+
+  // Painting and Changing must not import one another.
+  const painting = readFileSync("apps/web/components/environment/Painting.tsx", "utf8");
+  check("the picture and the changing one do not import each other",
+    !/horror\/Changing/.test(painting) && existsSync("apps/web/components/environment/Paintings.tsx"));
+}
+
+// All three the brief names by example are built, and all three leave the
+// floor plan untouched: nothing about them can be seen without looking twice.
+{
+  const kinds = ["chair-creeps", "door-opens", "painting-turns"] as const;
+  const clean = JSON.stringify(buildFloor(generateFloor(REFERENCE_FLOOR)).boxes);
+  const changed = kinds.filter((kind) =>
+    JSON.stringify(buildFloor(applyAnomaly(generateFloor(REFERENCE_FLOOR),
+      { kind, target: 0, description: kind })).boxes) !== clean);
+  check("the three look-away anomalies are all built",
+    kinds.every((k) => ANOMALY_KINDS.includes(k)), kinds.join(", "));
+  check("and none of them changes the floor until it happens",
+    changed.length === 0, changed.join(", ") || "all three");
 }
 
 console.log("\nfloors this seed:");

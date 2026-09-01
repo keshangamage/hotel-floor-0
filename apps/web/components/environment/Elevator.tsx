@@ -20,8 +20,7 @@ import {
   stepElevator,
 } from "@/game/systems/elevator";
 import { audio } from "@/game/systems/audio";
-import { REFERENCE_FLOOR, type Anomaly } from "@/game/systems/anomaly";
-import { DEPTH_TO_WIN, judge, type Call } from "@/game/systems/descent";
+import { ENDING_FLOOR, type Anomaly } from "@/game/systems/anomaly";
 import { useGameStore } from "@/store/useGameStore";
 
 import { PanelButton } from "./PanelButton";
@@ -36,7 +35,6 @@ const SOUND_AT: readonly [number, number, number] = [0, 1.2, ELEVATOR.frontZ];
 const PANEL_SIZE: [number, number, number] = [PANEL_WIDTH, ELEVATOR.doorHeight, ELEVATOR.doorThickness];
 
 export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
-  const anomalous = anomaly !== null;
   const displayWrong = anomaly?.kind === "display-wrong";
   const camera = useThree((state) => state.camera);
   const setFloorNumber = useGameStore((state) => state.setFloorNumber);
@@ -87,6 +85,10 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
     if (state.floor !== arrivedAt.current) {
       arrivedAt.current = state.floor;
       setFloorNumber(state.floor);
+      // Arriving on floor zero is the moment the lift stops answering. Set on
+      // arrival rather than on the press, so the doors open before the player
+      // learns they cannot leave.
+      if (state.floor === ENDING_FLOOR) useGameStore.getState().setTrapped();
     }
   });
 
@@ -96,32 +98,26 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
     callElevator(elevator.current, ELEVATOR_CONFIG);
   }, []);
 
-  const finished = useGameStore((state) => state.depth >= DEPTH_TO_WIN);
-  // Nothing to compare the reference floor against: it is the thing every
-  // other floor is judged by. Asking for a verdict here is a question with one
-  // possible answer, which a player can still get wrong and lose the run to
-  // before the game has begun.
-  const reference = useGameStore((state) => state.floorNumber === REFERENCE_FLOOR);
+  const trapped = useGameStore((state) => state.trapped);
 
-  // The only two things the player can say: something was wrong, or it was not.
-  const press = useCallback((call: Call) => {
-    const { depth, recordCall, beginAgain } = useGameStore.getState();
-    audio.click(SOUND_AT);
-
-    // Floor zero is the end of the run. The car will not judge another call
-    // there, which would take the finished run away, but it will take the
-    // player back up to start a different hotel.
-    if (depth >= DEPTH_TO_WIN) {
-      beginAgain();
-      requestFloor(elevator.current, REFERENCE_FLOOR, ELEVATOR_CONFIG);
+  /**
+   * A hotel lift, until it is not.
+   *
+   * Before the player reaches floor zero this behaves like any other: press a
+   * floor and the car goes. Afterwards no button lights at all, which is the
+   * premise rather than a puzzle. They did not choose to be down here and
+   * cannot simply press five to leave.
+   */
+  const press = useCallback((floor: number) => {
+    if (trapped) {
+      // A dead press still makes the sound of a press. Silence would read as
+      // the game having missed the input rather than the lift refusing it.
+      audio.click(SOUND_AT);
       return;
     }
-    const verdict = judge(depth, anomalous, call);
-    // What the floor actually was, so a wrong call can say what was missed
-    // rather than leaving the player to guess whether they imagined it.
-    recordCall(verdict, anomaly?.description ?? null);
-    requestFloor(elevator.current, verdict.floor, ELEVATOR_CONFIG);
-  }, [anomalous, anomaly]);
+    audio.click(SOUND_AT);
+    requestFloor(elevator.current, floor, ELEVATOR_CONFIG);
+  }, [trapped]);
 
   // Reaching the panel means standing in the car, so the player is looking at it.
   const inCar = camera.position.z > ELEVATOR.frontZ;
@@ -159,36 +155,19 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
       {/* Interior panel. */}
       <group position={PANEL_POSITION} rotation={[0, -Math.PI / 2, 0]}>
         <mesh geometry={UNIT_BOX} material={MATERIALS.metal} scale={[0.17, 0.56, 0.02]} />
-        {/* Both of these take the car down when they are right. They are the
-            player's verdict on the corridor they just walked, not a direction,
-            and labelling them up and down said the opposite of what happened
-            to the floor number.
-
-            On the reference floor there is nothing to give a verdict on, so
-            the panel offers the ride and nothing else. */}
-        {reference && !finished ? (
+        {/* An ordinary hotel panel. Pressing 0 is the accident the whole
+            game turns on, so it sits among the others rather than apart. */}
+        {ELEVATOR_CONFIG.servedFloors.map((floor, index) => (
           <PanelButton
-            position={[0, 0.09, 0.014]}
-            prompt="Go down"
-            onPress={() => press("unchanged")}
-            active
+            key={floor}
+            position={[0, 0.22 - index * 0.072, 0.014]}
+            prompt={trapped ? "The button does not light" : `Floor ${floor}`}
+            onPress={() => press(floor)}
+            lit={!trapped && readout === floor}
+            active={!trapped}
           />
-        ) : (
-          <>
-            <PanelButton
-              position={[0, 0.16, 0.014]}
-              prompt={finished ? "Begin again" : "Nothing had changed"}
-              onPress={() => press("unchanged")}
-              active
-            />
-            <PanelButton
-              position={[0, 0.02, 0.014]}
-              prompt={finished ? "Begin again" : "Something had changed"}
-              onPress={() => press("changed")}
-              active
-            />
-          </>
-        )}
+        ))}
+
         <PanelButton
           position={[0, -0.21, 0.014]}
           prompt="Close doors"
