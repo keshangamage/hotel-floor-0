@@ -2,9 +2,10 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { DEFAULT_SEED } from "@/game/generation/generateFloor";
+import { REFERENCE_FLOOR } from "@/game/systems/anomaly";
 import type { NoteSpec } from "@/game/types";
 
-export type GamePhase = "menu" | "playing" | "paused";
+export type GamePhase = "menu" | "playing" | "paused" | "ending";
 
 interface GameState {
   phase: GamePhase;
@@ -27,6 +28,20 @@ interface GameState {
    * press five to leave.
    */
   trapped: boolean;
+  /**
+   * The one floor a dead lift will still take. Null while it takes none.
+   *
+   * The way on is never back up. Something found on a floor makes the lift
+   * offer the next one down, and only that one, so the hotel is always the
+   * thing deciding where the player goes.
+   */
+  offered: number | null;
+  /**
+   * Bumped to start a new run. The scene is keyed on it, so everything holding
+   * position - the player, the car, the doors - is rebuilt rather than left
+   * standing where the last run ended.
+   */
+  run: number;
   /** The note being read, or null. */
   reading: NoteSpec | null;
   flashlightOn: boolean;
@@ -43,6 +58,9 @@ interface GameState {
   toggleFlashlight: () => void;
   readNote: (note: NoteSpec | null) => void;
   setTrapped: () => void;
+  offer: (floor: number) => void;
+  finish: () => void;
+  restart: () => void;
 }
 
 /**
@@ -59,6 +77,8 @@ export const useGameStore = create<GameState>()(
       lightsOff: {},
       pausedAt: 0,
       trapped: false,
+      offered: null,
+      run: 0,
       reading: null,
       flashlightOn: false,
       volume: 0.7,
@@ -80,6 +100,24 @@ export const useGameStore = create<GameState>()(
       readNote: (reading) => set({ reading }),
       // Once only, and never undone: the lift does not start working again.
       setTrapped: () => set({ trapped: true }),
+      // Only ever downward, and only one at a time.
+      offer: (floor) => set((state) => (state.offered !== null && floor >= state.offered
+        ? {}
+        : { offered: floor })),
+      finish: () => set({ phase: "ending" }),
+      // A new hotel, not the same one again: the run that just ended is the
+      // only one that building gets.
+      restart: () => set((state) => ({
+        phase: "menu",
+        seed: Math.random().toString(36).slice(2, 10),
+        floorNumber: REFERENCE_FLOOR,
+        trapped: false,
+        offered: null,
+        lightsOff: {},
+        reading: null,
+        interactPrompt: null,
+        run: state.run + 1,
+      })),
     }),
     {
       name: "hotel-floor-0",
@@ -109,6 +147,7 @@ export const useGameStore = create<GameState>()(
         seed: state.seed,
         floorNumber: state.floorNumber,
         trapped: state.trapped,
+        offered: state.offered,
         volume: state.volume,
         sensitivity: state.sensitivity,
       }),

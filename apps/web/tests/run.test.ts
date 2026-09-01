@@ -16,7 +16,7 @@ const check = (n: string, ok: boolean, d = "") => {
 };
 
 const store = () => useGameStore.getState();
-const reset = () => useGameStore.setState({ trapped: false, floorNumber: 5 });
+const reset = () => useGameStore.setState({ trapped: false, offered: null, floorNumber: 5 });
 
 // The premise. The lift works like any hotel's until the player reaches floor
 // zero, and never again afterwards.
@@ -34,7 +34,7 @@ const reset = () => useGameStore.setState({ trapped: false, floorNumber: 5 });
   const { readFileSync } = await import("node:fs");
   const source = readFileSync("apps/web/store/useGameStore.ts", "utf8");
   const block = source.slice(source.indexOf("partialize:"));
-  for (const key of ["seed", "floorNumber", "trapped"]) {
+  for (const key of ["seed", "floorNumber", "trapped", "offered"]) {
     check(`${key} survives a reload`, new RegExp(`${key}: state\\.${key}`).test(block));
   }
   // Restoring these would drop the player into a paused menu holding a note.
@@ -51,12 +51,15 @@ const reset = () => useGameStore.setState({ trapped: false, floorNumber: 5 });
   const { readFileSync } = await import("node:fs");
   const lift = readFileSync("apps/web/components/environment/Elevator.tsx", "utf8");
   check("the panel offers the floors the hotel has",
-    /ELEVATOR_CONFIG\.servedFloors\.map/.test(lift),
+    /servedFloors[\s\S]{0,60}\.map\(/.test(lift),
     "so pressing 0 is an accident among ordinary buttons");
-  check("a trapped lift refuses every one of them", /if \(trapped\)/.test(lift));
+  // The floors under the building are not on the panel to begin with.
+  check("but not the ones beneath it", /\.filter\(\(floor\) => floor >= 0\)/.test(lift));
+  check("a trapped lift refuses every one of them",
+    /if \(trapped && floor !== offered\)/.test(lift));
   // Silence would read as the game missing the input rather than refusing it.
   check("but still answers the press with a sound",
-    /if \(trapped\)[\s\S]{0,220}audio\.click/.test(lift));
+    /floor !== offered\)[\s\S]{0,220}audio\.click/.test(lift));
   // Sprung on arrival, so the doors open before the player learns they cannot
   // leave.
   check("the trap springs when the doors open, not when the button is pressed",
@@ -125,6 +128,114 @@ const reset = () => useGameStore.setState({ trapped: false, floorNumber: 5 });
   check("a shared link carries a title and description",
     /openGraph:/.test(layout) && /twitter:/.test(layout));
   check("and an image to unfurl", existsSync("apps/web/app/opengraph-image.tsx"));
+}
+
+// The way on. A dead lift takes one floor, and only after the player has found
+// what is waiting at the end of floor zero.
+{
+  reset();
+  store().setTrapped();
+  check("a trapped lift takes nowhere at first", store().offered === null);
+
+  store().offer(-1);
+  check("something found makes it take one floor", store().offered === -1);
+
+  // Never back up, and never two at once: the hotel chooses, always downward.
+  store().offer(0);
+  check("it will not be talked upward", store().offered === -1, "0 refused");
+  store().offer(5);
+  check("nor back to the player's own floor", store().offered === -1);
+  store().offer(-2);
+  check("but it will go further down", store().offered === -2);
+}
+
+// The panel is dead until a page opens something.
+{
+  const { readFileSync } = await import("node:fs");
+  const lift = readFileSync("apps/web/components/environment/Elevator.tsx", "utf8");
+  check("the dead panel refuses everything but that floor",
+    /if \(trapped && floor !== offered\)/.test(lift));
+  check("and grows a button for it that was not there before",
+    /trapped && offered !== null \?/.test(lift));
+}
+
+// A floor under the building carries the numbers of the player's own, which is
+// worse than a number that makes no sense.
+{
+  const { generateFloor } = await import("../game/generation/generateFloor");
+  const below = generateFloor(-1);
+  const own = generateFloor(5);
+  check("floors below the ground repeat the fifth's numbers",
+    JSON.stringify(below.rooms.map((r) => r.number)) === JSON.stringify(own.rooms.map((r) => r.number)),
+    below.rooms.slice(0, 3).map((r) => r.number).join(", "));
+  check("and none of them is a negative number",
+    below.rooms.every((r) => r.number > 0));
+  // It still has to be a floor a player can walk.
+  check("it is still a working floor",
+    below.rooms.length === 8 && below.corridorFrom < below.corridorTo);
+}
+
+// The descent below the hotel. Each floor holds one page, the page opens the
+// next, and the last one opens nothing.
+{
+  const { generateFloor } = await import("../game/generation/generateFloor");
+  const { buildFloor } = await import("../game/data/floor");
+
+  // The page at the end of the corridor, not the notice on the room's desk.
+  const page = (floor: number) =>
+    buildFloor(generateFloor(floor)).notes.find((n) => n.id.startsWith("floor-"));
+
+  // Walk it the way the player does: read what is here, press what it opens.
+  const chain = [0];
+  for (let step = 0; step < 12; step += 1) {
+    const floor = chain[chain.length - 1] as number;
+    const found = page(floor);
+    // The end of the walk is a floor with nothing left to read on it.
+    if (!found?.opens) break;
+    check(`floor ${floor} opens the one below it`, found.opens === floor - 1,
+      `opens ${found.opens}`);
+    chain.push(found.opens);
+  }
+  check("the descent runs from the ground floor to the bottom", chain.length >= 5,
+    `floors ${chain.join(", ")}`);
+  check("and stops where there is nothing further to read",
+    page(chain[chain.length - 1] as number)?.opens === undefined,
+    `floor ${chain[chain.length - 1]} is the end`);
+
+  // Every floor of it has to be reachable by the lift, or the chain stops
+  // somewhere the player cannot follow.
+  const { ELEVATOR_CONFIG, isServed } = await import("../game/systems/elevator");
+  const unreachable = chain.filter((f) => !isServed(f, ELEVATOR_CONFIG));
+  check("the lift can reach every floor the pages open", unreachable.length === 0,
+    unreachable.join(", ") || `${chain.length} floors`);
+  check("and no further than the last of them",
+    !isServed(Math.min(...chain) - 1, ELEVATOR_CONFIG),
+    "so the panel never advertises how deep this goes");
+  // It has to end on G. Ending anywhere else leaves the player on a floor with
+  // no page to read and no button to press.
+  const { G_FLOOR } = await import("../game/systems/elevator");
+  check("the descent ends at G", chain[chain.length - 1] === G_FLOOR,
+    `ends on ${chain[chain.length - 1]}`);
+  // G is the fifth floor: nine floors down, the doors open on the corridor the
+  // player started in, with nothing wrong with it.
+  const g = generateFloor(G_FLOOR);
+  const home = generateFloor(5);
+  check("and G is the floor the player started on",
+    JSON.stringify(g.rooms) === JSON.stringify(home.rooms) && g.anomaly === null);
+
+  // Reaching it with the doors open is what ends the run.
+  const { readFileSync } = await import("node:fs");
+  const lift = readFileSync("apps/web/components/environment/Elevator.tsx", "utf8");
+  check("arriving at G ends the game",
+    /state\.phase === "open" && state\.floor === G_FLOOR/.test(lift));
+  check("and the ending is a phase, not a screen the player can pause out of",
+    /phase === "playing" \|\| phase === "ending"/.test(
+      readFileSync("apps/web/components/ui/Overlay.tsx", "utf8")));
+
+  // A page opens a floor by saying so, not by its name.
+  check("a page opens a floor by carrying it",
+    /spec\.opens !== undefined\) offer\(spec\.opens\)/.test(
+      readFileSync("apps/web/components/environment/Note.tsx", "utf8")));
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);

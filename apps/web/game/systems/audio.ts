@@ -32,6 +32,13 @@ function brownNoise(context: AudioContext): AudioBuffer {
   return buffer;
 }
 
+/** Room tone, which is retuned as the player descends rather than restarted. */
+export interface ToneVoice {
+  stop(): void;
+  /** 0 at the top of the hotel, 1 at the bottom of what is under it. */
+  depth(level: number): void;
+}
+
 export interface StepSprite {
   readonly offset: number;
   readonly duration: number;
@@ -491,7 +498,7 @@ export class AudioEngine {
    * Silence is what makes a space feel like a render. This is deliberately just
    * above hearing, so it registers only when it stops.
    */
-  roomTone(level = 1): Voice | null {
+  roomTone(level = 1, depth = 0): ToneVoice | null {
     const context = this.ensure();
     if (!context || !this.master || !this.brown) return null;
 
@@ -499,13 +506,18 @@ export class AudioEngine {
     source.buffer = this.brown;
     source.loop = true;
 
+    // Deeper floors are heavier and duller, which is the whole of the descent
+    // as far as the ear is concerned.
+    const cutoff = (d: number) => 220 - d * 95;
+    const weight = (d: number) => 0.05 * level * (1 + d * 0.55);
+
     const low = context.createBiquadFilter();
     low.type = "lowpass";
-    low.frequency.value = 220;
+    low.frequency.value = cutoff(depth);
 
     const gain = context.createGain();
     gain.gain.value = 0;
-    gain.gain.linearRampToValueAtTime(0.05 * level, context.currentTime + 2.5);
+    gain.gain.linearRampToValueAtTime(weight(depth), context.currentTime + 2.5);
 
     // A dead steady tone reads as a stuck buffer, so drift the filter slowly.
     const drift = context.createOscillator();
@@ -518,7 +530,7 @@ export class AudioEngine {
     source.start();
     drift.start();
 
-    const voice: Voice = {
+    const voice: ToneVoice = {
       stop: () => {
         const t = context.currentTime;
         gain.gain.cancelScheduledValues(t);
@@ -528,9 +540,172 @@ export class AudioEngine {
         drift.stop(t + 0.5);
         this.voices.delete(voice);
       },
+      // Slid over, not cut to: a tone that steps is a tone the player hears as
+      // a sound effect rather than as the building.
+      depth: (next) => {
+        const t = context.currentTime;
+        for (const [param, value] of [
+          [low.frequency, cutoff(next)],
+          [gain.gain, weight(next)],
+        ] as const) {
+          param.cancelScheduledValues(t);
+          param.setValueAtTime(param.value, t);
+          param.linearRampToValueAtTime(value, t + 2);
+        }
+      },
     };
     this.voices.add(voice);
     return voice;
+  }
+
+  /**
+   * A fixture that is failing, heard from under it.
+   *
+   * Mains hum and its harmonics rather than a tone: a fluorescent buzzes at
+   * twice the supply frequency, and the raggedness is what says the fitting is
+   * going rather than merely on. This makes the flicker anomaly audible from
+   * round a corner, which is the point of it.
+   */
+  buzz(position: readonly [number, number, number]): Voice | null {
+    const context = this.ensure();
+    const out = this.route(position);
+    if (!context || !out || !this.white) return null;
+
+    const gain = context.createGain();
+    gain.gain.value = 0;
+    gain.gain.linearRampToValueAtTime(1, context.currentTime + 0.8);
+    gain.connect(out);
+
+    // Twice the supply frequency, plus the harmonic that makes it grating.
+    const tones: OscillatorNode[] = [];
+    for (const [hz, level, type] of [[120, 0.026, "square"], [240, 0.012, "sawtooth"]] as const) {
+      const osc = context.createOscillator();
+      osc.type = type;
+      osc.frequency.value = hz;
+      const dull = context.createBiquadFilter();
+      dull.type = "lowpass";
+      dull.frequency.value = 1400;
+      const level_ = context.createGain();
+      level_.gain.value = level;
+      osc.connect(dull).connect(level_).connect(gain);
+      osc.start();
+      tones.push(osc);
+    }
+
+    // The starter crackling. Without it the hum is a machine, not a fault.
+    const crackle = context.createBufferSource();
+    crackle.buffer = this.white;
+    crackle.loop = true;
+    const band = context.createBiquadFilter();
+    band.type = "bandpass";
+    band.frequency.value = 3200;
+    band.Q.value = 2.4;
+    const crackleGain = context.createGain();
+    crackleGain.gain.value = 0.0035;
+    crackle.connect(band).connect(crackleGain).connect(gain);
+    crackle.start(0, Math.random());
+
+    // Two rates that never line up, so it never settles into a rhythm.
+    const wobble = context.createOscillator();
+    wobble.frequency.value = 7.3;
+    const wobbleDepth = context.createGain();
+    wobbleDepth.gain.value = 0.35;
+    wobble.connect(wobbleDepth).connect(gain.gain);
+    wobble.start();
+
+    const voice: Voice = {
+      stop: () => {
+        const t = context.currentTime;
+        gain.gain.cancelScheduledValues(t);
+        gain.gain.setValueAtTime(gain.gain.value, t);
+        gain.gain.linearRampToValueAtTime(0, t + 0.3);
+        for (const osc of tones) osc.stop(t + 0.4);
+        wobble.stop(t + 0.4);
+        crackle.stop(t + 0.4);
+        this.voices.delete(voice);
+      },
+    };
+    this.voices.add(voice);
+    return voice;
+  }
+
+  /**
+   * The building settling: one long groan from somewhere in the structure.
+   *
+   * A resonant band swept slowly across noise, which is what timber under load
+   * actually does. Slow on purpose, because a short one is a footstep.
+   */
+  creak(position: readonly [number, number, number]): void {
+    const context = this.ensure();
+    const out = this.route(position);
+    if (!context || !out || !this.brown) return;
+    const now = context.currentTime;
+    const length = 0.9 + Math.random() * 0.9;
+
+    const source = context.createBufferSource();
+    source.buffer = this.brown;
+
+    const band = context.createBiquadFilter();
+    band.type = "bandpass";
+    band.Q.value = 9;
+    // Bends up under the load and settles back, never quite to where it began.
+    const start = 210 + Math.random() * 150;
+    band.frequency.setValueAtTime(start, now);
+    band.frequency.exponentialRampToValueAtTime(start * 1.7, now + length * 0.6);
+    band.frequency.exponentialRampToValueAtTime(start * 1.15, now + length);
+
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.09, now + length * 0.35);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + length);
+
+    source.connect(band).connect(gain).connect(out);
+    source.start(now, Math.random());
+    source.stop(now + length + 0.05);
+  }
+
+  /**
+   * Someone speaking, too quietly and too far off to be words.
+   *
+   * Bursts of noise inside the band a voice occupies, shaped into something
+   * with the length and spacing of syllables. Never words: a player who can
+   * make out a word will argue about which word, and the sound has done its
+   * work already by being a person.
+   */
+  whisper(position: readonly [number, number, number]): void {
+    const context = this.ensure();
+    const out = this.route(position);
+    if (!context || !out || !this.white) return;
+
+    let at = context.currentTime;
+    const syllables = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < syllables; i += 1) {
+      const length = 0.07 + Math.random() * 0.13;
+
+      const source = context.createBufferSource();
+      source.buffer = this.white;
+
+      // Two resonances, which is roughly what makes breath read as a mouth.
+      const throat = context.createBiquadFilter();
+      throat.type = "bandpass";
+      throat.frequency.value = 480 + Math.random() * 320;
+      throat.Q.value = 4;
+      const mouth = context.createBiquadFilter();
+      mouth.type = "bandpass";
+      mouth.frequency.value = 1500 + Math.random() * 1100;
+      mouth.Q.value = 2.6;
+
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.022, at + length * 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
+
+      source.connect(throat).connect(mouth).connect(gain).connect(out);
+      source.start(at, Math.random());
+      source.stop(at + length + 0.02);
+
+      at += length + 0.03 + Math.random() * 0.1;
+    }
   }
 
   dispose(): void {

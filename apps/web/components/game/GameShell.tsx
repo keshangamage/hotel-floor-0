@@ -5,6 +5,7 @@ import { useEffect } from "react";
 
 import { Announce } from "@/components/ui/Announce";
 import { Crosshair } from "@/components/ui/Crosshair";
+import { Ending } from "@/components/ui/Ending";
 import { InteractPrompt } from "@/components/ui/InteractPrompt";
 import { NoteOverlay } from "@/components/ui/NoteOverlay";
 import { Overlay } from "@/components/ui/Overlay";
@@ -60,6 +61,7 @@ export function GameShell() {
       <Announce />
       <InteractPrompt />
       <NoteOverlay />
+      <Ending />
       <GameCanvas />
     </main>
   );

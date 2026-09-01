@@ -234,17 +234,15 @@ check("the reference floor is never anomalous",
       before.title === after.title && before.lines.length === after.lines.length,
       `${after.lines.length} lines`);
     const text = after.lines.join(" ").toLowerCase();
-    check("and still gives an instruction either way",
-      text.includes("differ") && text.includes("not differ"), text.slice(0, 50) + "...");
-    // The point is that it says the opposite, not that it says nonsense: the
-    // guest who obeys it is led wrong, the guest who remembers is not.
-    const before_ = before.lines.join(" ").toLowerCase();
-    check("and says the opposite of the real one",
-      before_.includes("tell the lift so") && text.includes("does not"),
-      "the two instructions are swapped");
-    // The point is that it says the opposite, not that it says nonsense.
-    const flipped = before.lines.some((line, i) => line !== after.lines[i]);
-    check("the instructions are what changed", flipped);
+    const was = before.lines.join(" ").toLowerCase();
+    // It moves breakfast to a floor the hotel does not have. The player who
+    // read the real one that morning is the one who catches it.
+    check("the altered notice names a floor that is not there",
+      was.includes("fifth floor") && text.includes("ground floor"),
+      "breakfast has moved downstairs");
+    // Everything else about it is the same piece of paper.
+    check("and is otherwise the same notice",
+      text.includes("stairs are not in service") && text.includes("use the lift"));
   }
 
   // It must not touch the plan, or it could be spotted without reading.
