@@ -32,6 +32,9 @@ export type AnomalyKind =
   | "display-wrong"
   | "sign-gone"
   | "knocking"
+  | "chair-creeps"
+  | "door-opens"
+  | "painting-turns"
   | "silence"
   | "following";
 
@@ -81,8 +84,11 @@ const SUBTLETY: Record<AnomalyKind, 1 | 2 | 3> = {
   "bedside-dark": 2,
   "display-wrong": 2,
   "knocking": 2,
+  "door-opens": 2,
   // Needs the player to already know the hotel.
   "following": 3,
+  "chair-creeps": 3,
+  "painting-turns": 3,
   "notice-changed": 3,
   "silence": 3,
 };
@@ -115,6 +121,9 @@ export const ANOMALY_KINDS: readonly AnomalyKind[] = [
   "display-wrong",
   "sign-gone",
   "knocking",
+  "chair-creeps",
+  "door-opens",
+  "painting-turns",
   "silence",
   "following",
 ];
@@ -139,8 +148,11 @@ export const CARRIED: ReadonlySet<AnomalyKind> = new Set<AnomalyKind>([
   "display-wrong",
   // A door plate, which the plan describes as a number rather than a sign.
   "sign-gone",
-  // The only one that happens rather than simply being so.
+  // The ones that happen rather than simply being so.
   "knocking",
+  "chair-creeps",
+  "door-opens",
+  "painting-turns",
 ]);
 
 export const isCarried = (kind: AnomalyKind): boolean => CARRIED.has(kind);
@@ -184,6 +196,9 @@ function describe(kind: AnomalyKind): string {
     case "display-wrong": return "the lift says it is on a different floor";
     case "sign-gone": return "a door has lost its number";
     case "knocking": return "someone is knocking from inside a locked room";
+    case "chair-creeps": return "the chair is not where it was left";
+    case "door-opens": return "a locked door has come open behind you";
+    case "painting-turns": return "a picture is not the one that was hanging there";
     case "silence": return "the floor makes no sound at all";
     case "following": return "something is walking a step behind";
   }
@@ -266,6 +281,9 @@ export function applyAnomaly(spec: FloorSpec, anomaly: Anomaly | null): FloorSpe
     case "display-wrong":
     case "sign-gone":
     case "knocking":
+    case "chair-creeps":
+    case "door-opens":
+    case "painting-turns":
       return { ...spec, anomaly };
 
     case "corridor-long":

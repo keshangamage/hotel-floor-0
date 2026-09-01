@@ -7,7 +7,7 @@ import { Doors } from "@/components/environment/Doors";
 import { Elevator } from "@/components/environment/Elevator";
 import { FloorGeometry } from "@/components/environment/FloorGeometry";
 import { Notes } from "@/components/environment/Note";
-import { Paintings } from "@/components/environment/Painting";
+import { Paintings } from "@/components/environment/Paintings";
 import { Props } from "@/components/environment/Props";
 import { RoomSigns } from "@/components/environment/RoomSign";
 import { Switches } from "@/components/environment/Switches";
@@ -44,8 +44,15 @@ function Scene() {
         <LookControls />
         <HotelLighting layout={layout} />
         <FloorGeometry layout={layout} />
-        <Props layout={layout} />
-        <Paintings paintings={layout.paintings} />
+        <Props layout={layout} wrong={spec.anomaly?.kind} />
+        <Paintings
+          paintings={layout.paintings}
+          turning={
+            spec.anomaly?.kind === "painting-turns" && layout.paintings.length > 0
+              ? spec.anomaly.target % layout.paintings.length
+              : undefined
+          }
+        />
         <Notes notes={layout.notes} />
         {/* Doors register their frame callback before the player, so
             colliders are already positioned when movement resolves. */}

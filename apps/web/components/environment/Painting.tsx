@@ -35,13 +35,3 @@ export function Painting({ spec }: { spec: PaintingSpec }) {
     </group>
   );
 }
-
-export function Paintings({ paintings }: { paintings: readonly PaintingSpec[] }) {
-  return (
-    <>
-      {paintings.map((spec) => (
-        <Painting key={spec.id} spec={spec} />
-      ))}
-    </>
-  );
-}

@@ -87,6 +87,13 @@ export interface DoorSpec {
    * were invisible until they did.
    */
   readonly startsOpen?: boolean;
+  /**
+   * Swings open the first time the player looks away from it.
+   *
+   * A locked one, so it is a door that could not have been opened rather than
+   * one the player might have left ajar themselves.
+   */
+  readonly opensUnwatched?: boolean;
 }
 
 /** An instance of a prop from the imported model library. */

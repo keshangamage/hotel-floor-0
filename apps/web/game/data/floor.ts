@@ -323,12 +323,19 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     boxes,
     lamps,
     // A door plate is dressing rather than plan: the room still has its
-    // number, and only the thing screwed to the wall is missing.
-    doors: spec.rooms.map(doorFor).map((door, i) =>
-      spec.anomaly?.kind === "sign-gone" && i === spec.anomaly.target % spec.rooms.length
-        ? { ...door, label: undefined }
-        : door,
-    ),
+    // number, and only the thing screwed to the wall is missing. A door that
+    // opens itself is dressing too, and picks a locked one so it is a door
+    // that could not have been opened rather than one left ajar.
+    doors: spec.rooms.map(doorFor).map((door, i) => {
+      const chosen = spec.anomaly ? i === spec.anomaly.target % spec.rooms.length : false;
+      if (spec.anomaly?.kind === "sign-gone" && chosen) return { ...door, label: undefined };
+      if (spec.anomaly?.kind === "door-opens") {
+        const shut = spec.rooms.map((r, j) => (r.door === "locked" ? j : -1)).filter((j) => j >= 0);
+        const at = shut[spec.anomaly.target % Math.max(1, shut.length)];
+        if (i === at) return { ...door, opensUnwatched: true };
+      }
+      return door;
+    }),
     switches,
     props,
     paintings: corridorPaintings(spec),
