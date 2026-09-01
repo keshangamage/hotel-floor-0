@@ -38,7 +38,8 @@ export function Overlay() {
   }, [phase, pausedAt]);
 
   const armed = phase !== "paused" || armedAt === pausedAt;
-  const playing = phase === "playing";
+  // The ending draws its own screen, and the pause menu is not part of it.
+  const playing = phase === "playing" || phase === "ending";
   const interactive = !playing && armed;
 
   return (

@@ -1,3 +1,4 @@
+import { G_FLOOR } from "../systems/elevator";
 import { boxFromBounds, room, slab, wallWithOpenings, type Opening } from "./builders";
 import {
   CEILING_HEIGHT,
@@ -15,7 +16,6 @@ import {
   WINDOW_WIDTH,
 } from "./dimensions";
 import { PROP_SIZES } from "./propSizes.generated";
-import { ENDING_FLOOR } from "../systems/anomaly";
 import { ELEVATOR, buildElevator } from "./elevator";
 import { furnishHotelRoom, type RoomFrame } from "./furniture";
 import { DEFAULT_SEED, generateFloor } from "../generation/generateFloor";
@@ -104,33 +104,79 @@ function corridorPaintings(spec: FloorSpec): PaintingSpec[] {
 }
 
 /**
- * What is waiting at the bottom.
+ * What is waiting at the end of each corridor below the hotel.
  *
- * Floor zero has no rooms, so this lies on the floor at the far end of a
- * corridor twice the length of any other. Reaching it is the end of the run,
- * and walking that far in the dark to find a single sheet of paper is the only
- * payoff the game offers.
+ * One page per floor, lying on the floor at the far end, and each one both
+ * tells the player something and lets them leave. The way on is never solved,
+ * only found, and never upward.
+ *
+ * They are the hotel becoming a memory: the counting the guest notice thanked
+ * the player for turns out to be someone else's, from a long time ago.
  */
+const BELOW = new Map<number, { title: string; lines: string[]; opens?: number }>([
+  [0, {
+    title: "Notice to guests",
+    lines: [
+      "You have reached the ground floor.",
+      "",
+      "There is nothing beneath a hotel.",
+      "",
+      "Thank you for counting.",
+      "",
+      "Please return to your room.",
+    ],
+    opens: -1,
+  }],
+  [-1, {
+    title: "On the back of a receipt",
+    lines: [
+      "The carpet on this floor is the carpet",
+      "from the landing at home.",
+      "",
+      "I did not see it until tonight,",
+      "and I have walked over it a thousand times.",
+    ],
+    opens: -2,
+  }],
+  [-2, {
+    title: "In the margin of a newspaper",
+    lines: [
+      "There was a hotel like this one.",
+      "We stayed a week. I was nine.",
+      "",
+      "The lift took a long time, and my father",
+      "counted the floors aloud on the way down",
+      "so that I would not be frightened.",
+    ],
+    opens: -3,
+  }],
+  [-3, {
+    title: "In my own hand",
+    lines: [
+      "He counted down.",
+      "",
+      "Five. Four. Three. Two. One.",
+      "",
+      "And then he said the word that is not a number,",
+      "and I have been listening for it ever since.",
+    ],
+    opens: G_FLOOR,
+  }],
+]);
+
+
 function endingNote(spec: FloorSpec): NoteSpec[] {
-  if (spec.floorNumber !== ENDING_FLOOR) return [];
+  const page = BELOW.get(spec.floorNumber);
+  if (!page) return [];
   return [
     {
-      id: "floor-0-notice",
+      id: `floor-${spec.floorNumber}-notice`,
+      // At the far end, so the walk through the dark is the price of it.
       position: [0, 0.01, spec.corridorFrom + 0.9],
       yaw: 0,
-      // The hotel's own voice, the same as the notice in every room. The last
-      // line is an instruction the player cannot follow: the lift will only
-      // take them back to the top to start again.
-      title: "Notice to guests",
-      lines: [
-        "You have reached the ground floor.",
-        "",
-        "There is nothing beneath a hotel.",
-        "",
-        "Thank you for counting.",
-        "",
-        "Please return to your room.",
-      ],
+      title: page.title,
+      lines: page.lines,
+      opens: page.opens,
     },
   ];
 }

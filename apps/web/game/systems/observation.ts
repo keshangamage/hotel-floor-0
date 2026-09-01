@@ -26,6 +26,16 @@ const RANGE = 14;
  */
 const HYSTERESIS = 0.25;
 
+/**
+ * Half angle counted as looking straight at something, in radians.
+ *
+ * Narrower than the lens, where HALF_ANGLE is wider, because it answers the
+ * opposite question. "Has the player turned away" should be generous; "is the
+ * player looking right at it" has to mean the middle of the screen, or a thing
+ * that flinches from being looked at can never be on screen at all.
+ */
+const DIRECT_ANGLE = 0.22;
+
 export interface Watcher {
   /** Where the player is, and the way they are facing. */
   readonly at: Point3;
@@ -57,6 +67,17 @@ export const distanceTo = (watcher: Watcher, target: Point3): number =>
 export function isWatched(watcher: Watcher, target: Point3, wasWatched: boolean): boolean {
   if (distanceTo(watcher, target) > RANGE) return false;
   const limit = wasWatched ? HALF_ANGLE + HYSTERESIS : HALF_ANGLE;
+  return offAxis(watcher, target) <= limit;
+}
+
+/**
+ * Whether the player has a thing near the middle of the screen.
+ *
+ * No range limit: a corridor is long, and something at the end of it is being
+ * looked at just as much as something at arm's length.
+ */
+export function isFacing(watcher: Watcher, target: Point3, wasFacing: boolean): boolean {
+  const limit = wasFacing ? DIRECT_ANGLE + HYSTERESIS : DIRECT_ANGLE;
   return offAxis(watcher, target) <= limit;
 }
 

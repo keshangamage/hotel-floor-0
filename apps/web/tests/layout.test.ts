@@ -217,16 +217,14 @@ check("floor-standing props rest on the floor", floating.length === 0,
       `${note.lines.filter((l) => l).length} lines`);
     // It has to state the rule, or it is set dressing rather than the tutorial.
     const text = note.lines.join(" ").toLowerCase();
-    // Both halves of the rule, and the cost of getting it wrong. It must not
-    // say up or down: the lift takes a verdict and carries the guest down
-    // either way, so directions would describe the opposite of what happens.
-    check("it states both halves of the rule",
-      text.includes("differ") && text.includes("not differ"),
-      text.slice(0, 70) + "...");
-    check("and what a wrong answer costs", text.includes("returned to the fifth"));
-    check("without telling the guest to go up",
-      !/\bgo up\b|\bgo down\b/.test(text),
-      "the lift descends on either right answer");
+    // It explained the rules when there were rules. What it has to carry now
+    // is the one fact that matters: the lift is the only way anywhere, which
+    // is what makes it dying the whole of the premise.
+    check("it says the stairs are out", text.includes("stairs are not in service"));
+    check("and that the lift is the way", text.includes("use the lift"));
+    check("without explaining a rule the game no longer has",
+      !text.includes("differ") && !text.includes("returned to the fifth"),
+      "pressing the wrong button needs no instruction");
   }
 }
 

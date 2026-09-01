@@ -1,5 +1,7 @@
 import {
-  ELEVATOR_CONFIG, callElevator, closeDoors, createElevator, displayFloor,
+  ELEVATOR_CONFIG,
+  G_FLOOR,
+  floorLabel, callElevator, closeDoors, createElevator, displayFloor,
   isServed, requestFloor, stepElevator, type ElevatorConfig, type ElevatorState,
 } from "../game/systems/elevator";
 import { FLOOR_5_LAYOUT } from "../game/data/floor";
@@ -89,8 +91,19 @@ check("doors are never open while the car moves", !leaked);
 check("every floor of the descent is served",
   [5, 4, 3, 2, 1, 0].every((f) => isServed(f, ELEVATOR_CONFIG)),
   ELEVATOR_CONFIG.servedFloors.join(", "));
-check("and nothing below floor 0 is",
-  [-1, -2].every((f) => !isServed(f, ELEVATOR_CONFIG)));
+// One floor beneath the building, which the panel does not show until the
+// hotel offers it. Nothing further: each one has to be reached before the next
+// exists, so the lift never advertises how far down this goes.
+check("and the floors beneath it that the pages lead to",
+  [-1, -2, -3].every((f) => isServed(f, ELEVATOR_CONFIG)));
+check("and G under all of them", isServed(G_FLOOR, ELEVATOR_CONFIG));
+check("but no further than G", !isServed(G_FLOOR - 1, ELEVATOR_CONFIG),
+  "the panel never advertises a floor no page opens");
+// The whole ending turns on G not being printed as a number.
+check("G is never shown as a number", floorLabel(G_FLOOR) === "G");
+check("and every other floor still is",
+  ELEVATOR_CONFIG.servedFloors.filter((f) => f !== G_FLOOR)
+    .every((f) => floorLabel(f) === String(f)));
 
 // Sound follows this machine's transitions, so one trip has to mean one
 // arrival. A phase that flickers would ring the bell over and over.

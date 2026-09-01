@@ -31,6 +31,8 @@ const GLYPHS: Readonly<Record<string, readonly Segment[]>> = {
   "7": ["a", "b", "c"],
   "8": ALL,
   "9": ["a", "b", "c", "d", "f", "g"],
+  // Deliberately not the same shape as 6: G keeps the middle bar dark.
+  "G": ["a", "f", "e", "d", "c"],
   "-": ["g"],
   " ": [],
 };

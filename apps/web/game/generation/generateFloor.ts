@@ -1,5 +1,6 @@
 import { ROOM_DEPTH, ROOM_PITCH, ROOM_WIDTH } from "../data/dimensions";
 import { ELEVATOR } from "../data/elevator";
+import { G_FLOOR } from "../systems/elevator";
 import { applyAnomaly, chooseAnomaly, ENDING_FLOOR, REFERENCE_FLOOR } from "../systems/anomaly";
 import { createRandom } from "../systems/random";
 import type { FloorSpec, RoomSpec } from "../types";
@@ -72,7 +73,15 @@ function groundFloor(seed: string): FloorSpec {
 }
 
 export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED): FloorSpec {
+  // Floor zero alone is the empty one: a long dark corridor with nothing off
+  // it. Below that the hotel starts again, which is worse than nothing being
+  // there, and the pages at the end of each carry the player further down.
   if (floorNumber === ENDING_FLOOR) return groundFloor(seed);
+
+  // G is the fifth floor. Nine floors under the ground the doors open on the
+  // corridor the player started in, unchanged and with nothing wrong with it,
+  // which is the only answer the game gives.
+  if (floorNumber === G_FLOOR) return generateFloor(REFERENCE_FLOOR, seed);
 
   // One draw per hotel, not per floor. Every floor of a run shares this, so
   // the player still has a fixed thing to compare against, but two runs are
@@ -94,11 +103,20 @@ export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED):
   const tail = hotel.float(TAIL_MIN, TAIL_MAX);
   const corridorFrom = lastDoor - ROOM_WIDTH / 2 - tail;
 
+  /**
+   * Below the ground floor the doors carry the numbers of the player's own.
+   *
+   * A floor of rooms numbered -99 reads as arithmetic that has gone wrong. A
+   * floor of rooms numbered 501 to 508, on a lift that says it is somewhere
+   * under the building, reads as the hotel repeating itself.
+   */
+  const numbered = floorNumber < 0 ? REFERENCE_FLOOR : floorNumber;
+
   // Odd rooms on the -X wall, even on +X, numbered from the elevator inward.
   const rooms: RoomSpec[] = [];
   for (let i = 0; i < ROOMS_PER_SIDE; i += 1) {
     rooms.push({
-      number: floorNumber * 100 + (i * 2 + 1),
+      number: numbered * 100 + (i * 2 + 1),
       side: -1,
       doorZ: leftDoors[i]!,
       width: ROOM_WIDTH,
@@ -107,7 +125,7 @@ export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED):
       lit: false,
     });
     rooms.push({
-      number: floorNumber * 100 + (i * 2 + 2),
+      number: numbered * 100 + (i * 2 + 2),
       side: 1,
       doorZ: rightDoors[i]!,
       width: ROOM_WIDTH,

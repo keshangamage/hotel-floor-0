@@ -175,6 +175,13 @@ export interface NoteSpec {
   readonly yaw: number;
   readonly title: string;
   readonly lines: readonly string[];
+  /**
+   * The floor the lift will take once this has been read.
+   *
+   * The way on is always something found rather than something solved, and it
+   * is always one floor further down.
+   */
+  readonly opens?: number;
 }
 
 /** Everything needed to build one floor. */

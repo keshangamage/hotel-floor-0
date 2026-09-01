@@ -1,3 +1,17 @@
+/**
+ * The floor under the last one, which the panel does not number.
+ *
+ * A lift counts five, four, three, two, one, and then it says G. The pages
+ * found on the way down are about a man counting his son through exactly that,
+ * and the word he said at the end of it. This is that word.
+ */
+export const G_FLOOR = -4;
+
+/** G is a floor. It is not a number, so it is never printed as one. */
+export function floorLabel(floor: number): string {
+  return floor === G_FLOOR ? "G" : String(floor);
+}
+
 export type ElevatorPhase = "closed" | "opening" | "open" | "closing" | "travelling";
 
 export interface ElevatorConfig {
@@ -15,8 +29,8 @@ export const ELEVATOR_CONFIG: ElevatorConfig = {
   openTime: 1.1,
   holdTime: 5,
   travelPerFloor: 2.4,
-  // The whole descent, one floor at a time.
-  servedFloors: [5, 4, 3, 2, 1, 0],
+  // The hotel's own floors, the three under them that are not, and G.
+  servedFloors: [5, 4, 3, 2, 1, 0, -1, -2, -3, G_FLOOR],
 };
 
 export interface ElevatorState {

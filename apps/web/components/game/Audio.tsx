@@ -5,7 +5,8 @@ import * as THREE from "three";
 import { FOOTSTEPS } from "@/game/data/footsteps.generated";
 import { CORRIDOR_HALF_WIDTH } from "@/game/data/dimensions";
 import { generateFloor } from "@/game/generation/generateFloor";
-import { audio } from "@/game/systems/audio";
+import { depthOf } from "@/game/systems/ambience";
+import { audio, type ToneVoice } from "@/game/systems/audio";
 import { createStepTracker, stepDue, stepWeight } from "@/game/systems/footsteps";
 import { motion } from "@/game/systems/motion";
 import { useGameStore } from "@/store/useGameStore";
@@ -50,6 +51,7 @@ export function Audio() {
   const seed = useGameStore((state) => state.seed);
   const camera = useThree((state) => state.camera);
   const steps = useRef(createStepTracker());
+  const tone = useRef<ToneVoice | null>(null);
 
   // Some floors are wrong in ways only the ear catches. Regenerating the plan
   // here is cheap and deterministic, and keeps this out of the store.
@@ -78,12 +80,13 @@ export function Audio() {
     // only registers because every other floor has one.
     if (silent) return;
 
-    let tone: { stop: () => void } | null = null;
     let cancelled = false;
     // The click that locked the pointer is the gesture the context needs.
     void audio.resume().then(() => {
       if (cancelled) return;
-      tone = audio.roomTone();
+      // Read rather than watched: adding the floor to this effect's deps would
+      // restart the tone on every ride instead of sliding it.
+      tone.current = audio.roomTone(1, depthOf(useGameStore.getState().floorNumber));
       // Failure here is not fatal: steps fall back to being synthesised.
       void audio.loadFootsteps("/audio/footsteps.wav", FOOTSTEPS)
         .catch((error: unknown) => console.warn("footstep samples unavailable", error));
@@ -93,9 +96,17 @@ export function Audio() {
 
     return () => {
       cancelled = true;
-      tone?.stop();
+      tone.current?.stop();
+      tone.current = null;
     };
   }, [phase, silent]);
+
+  // Deeper floors are duller and heavier. Slid rather than restarted, so a ride
+  // down is one continuous sound instead of a tone stopping and another
+  // starting, which would read as an edit.
+  useEffect(() => {
+    tone.current?.depth(depthOf(floorNumber));
+  }, [floorNumber]);
 
   // Applied here rather than in the slider, so it also lands once the context
   // has actually started.

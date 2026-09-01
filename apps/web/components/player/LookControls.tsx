@@ -19,6 +19,7 @@ export function LookControls() {
   const onUnlock = useCallback(() => {
     // Escape does not blur the window, so held keys must be dropped here.
     input.clear();
+    if (useGameStore.getState().phase === "ending") return;
     setPhase("paused");
   }, [setPhase]);
 

@@ -4,6 +4,7 @@ import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 
 import { Doors } from "@/components/environment/Doors";
+import { Figure } from "@/components/horror/Figure";
 import { Elevator } from "@/components/environment/Elevator";
 import { FloorGeometry } from "@/components/environment/FloorGeometry";
 import { Notes } from "@/components/environment/Note";
@@ -21,6 +22,7 @@ import { buildFloor } from "@/game/data/floor";
 import { generateFloor } from "@/game/generation/generateFloor";
 import { useGameStore } from "@/store/useGameStore";
 
+import { Ambience } from "./Ambience";
 import { Audio } from "./Audio";
 import { ColliderProvider } from "./Colliders";
 import { Effects } from "./Effects";
@@ -59,6 +61,9 @@ function Scene() {
         <Doors layout={layout} />
         <RoomSigns layout={layout} />
         <Elevator anomaly={spec.anomaly} />
+        {/* Keyed on the floor: being spent is its only state, and each floor
+            under the hotel gets its own. */}
+        <Figure key={floorNumber} spec={spec} />
         <Switches layout={layout} />
         <InputActions />
         <Player layout={layout} />
@@ -76,6 +81,8 @@ function Scene() {
  * planes, fog and pixel-ratio budget. Never import this from a Server Component.
  */
 export default function GameCanvas() {
+  const run = useGameStore((state) => state.run);
+
   return (
     <Canvas
       // PCFSoft: hard shadow edges give away the low map resolution.
@@ -92,9 +99,13 @@ export default function GameCanvas() {
       <color attach="background" args={[FOG_COLOR]} />
 
       <EnvironmentProbe />
-      <Scene />
+      {/* Keyed on the run, so starting again rebuilds the player and the car
+          instead of leaving them where the last run ended. */}
+      <Scene key={run} />
       {/* After the scene, so it reads the player's final motion each frame. */}
       <Audio />
+      {/* Unprompted sound: the building settling, a failing fitting, a voice. */}
+      <Ambience />
       <Effects />
     </Canvas>
   );

@@ -16,6 +16,8 @@ import {
   closeDoors,
   createElevator,
   displayFloor,
+  floorLabel,
+  G_FLOOR,
   requestFloor,
   stepElevator,
 } from "@/game/systems/elevator";
@@ -75,6 +77,12 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
         motor.current = null;
         audio.ding(SOUND_AT);
       }
+
+      // The run ends with the doors open, not with the car arriving. The
+      // player gets one clear look at what is out there first.
+      if (state.phase === "open" && state.floor === G_FLOOR) {
+        useGameStore.getState().finish();
+      }
     }
 
     const shown = displayFloor(state);
@@ -99,6 +107,7 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
   }, []);
 
   const trapped = useGameStore((state) => state.trapped);
+  const offered = useGameStore((state) => state.offered);
 
   /**
    * A hotel lift, until it is not.
@@ -109,7 +118,7 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
    * cannot simply press five to leave.
    */
   const press = useCallback((floor: number) => {
-    if (trapped) {
+    if (trapped && floor !== offered) {
       // A dead press still makes the sound of a press. Silence would read as
       // the game having missed the input rather than the lift refusing it.
       audio.click(SOUND_AT);
@@ -117,7 +126,7 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
     }
     audio.click(SOUND_AT);
     requestFloor(elevator.current, floor, ELEVATOR_CONFIG);
-  }, [trapped]);
+  }, [trapped, offered]);
 
   // Reaching the panel means standing in the car, so the player is looking at it.
   const inCar = camera.position.z > ELEVATOR.frontZ;
@@ -143,7 +152,7 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
             the one it can reach is a broken prop, while one claiming to be
             higher than it is is a lift that is lying. The room numbers on the
             doors are what gives it away. */}
-        <SevenSegment value={String(displayWrong ? readout + 1 : readout)} />
+        <SevenSegment value={floorLabel(displayWrong ? readout + 1 : readout)} />
       </group>
 
       {/* Call plate in the lobby, beside the doors. */}
@@ -157,16 +166,32 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
         <mesh geometry={UNIT_BOX} material={MATERIALS.metal} scale={[0.17, 0.56, 0.02]} />
         {/* An ordinary hotel panel. Pressing 0 is the accident the whole
             game turns on, so it sits among the others rather than apart. */}
-        {ELEVATOR_CONFIG.servedFloors.map((floor, index) => (
+        {ELEVATOR_CONFIG.servedFloors
+          .filter((floor) => floor >= 0)
+          .map((floor, index) => (
+            <PanelButton
+              key={floor}
+              position={[0, 0.22 - index * 0.072, 0.014]}
+              prompt={trapped ? "The button does not light" : `Floor ${floor}`}
+              onPress={() => press(floor)}
+              lit={!trapped && readout === floor}
+              active={!trapped}
+            />
+          ))}
+
+        {/* A button under the others that was not there before. The panel is
+            dead except for this one, so the hotel is the thing choosing where
+            the player goes, and it only ever chooses further down. */}
+        {trapped && offered !== null ? (
           <PanelButton
-            key={floor}
-            position={[0, 0.22 - index * 0.072, 0.014]}
-            prompt={trapped ? "The button does not light" : `Floor ${floor}`}
-            onPress={() => press(floor)}
-            lit={!trapped && readout === floor}
-            active={!trapped}
+            position={[0, 0.22 - ELEVATOR_CONFIG.servedFloors.filter((f) => f >= 0).length * 0.072, 0.014]}
+            prompt={`Floor ${floorLabel(offered)}`}
+            onPress={() => press(offered)}
+            lit
+            active
+            color="#8fb0ff"
           />
-        ))}
+        ) : null}
 
         <PanelButton
           position={[0, -0.21, 0.014]}

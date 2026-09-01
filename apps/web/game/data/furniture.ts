@@ -272,11 +272,12 @@ export function furnishHotelRoom(
   ];
 
   /**
-   * The rules, as the hotel would put them.
+   * An ordinary hotel notice.
    *
-   * The game never explains itself anywhere else, and two unlabelled buttons in
-   * a lift are not a rule. Saying it in the hotel's own voice keeps the telling
-   * inside the fiction.
+   * It explained the game's rules when the game had rules to explain. It has
+   * none now: pressing the wrong button and finding the lift will not take it
+   * back needs no instruction. What is left is the hotel's own voice, and the
+   * one line that matters, which is why the lift is the only way anywhere.
    */
   const notes: NoteSpec[] = [
     {
@@ -285,36 +286,26 @@ export function furnishHotelRoom(
       position: localPoint(frame, 2.75, PROP_SIZES.desk[1] + 0.005, 1.05),
       yaw: worldYaw(frame, 0),
       title: "Notice to guests",
-      // The altered notice swaps the two instructions. A player who reads it
-      // and obeys is led the wrong way, but a player who remembers the one in
-      // their own room sees it for what it is, which is the whole game.
-      // The lift takes a verdict, not a direction: both answers carry the
-      // guest down when they are right. Wording it as up and down told them
-      // the opposite of what the floor indicator then did.
+      // The altered one moves breakfast to a floor the hotel does not have,
+      // and stops talking about rooms.
       lines: alteredNotice
         ? [
-            "The fifth floor is the ground floor.",
-            "",
-            "Should the floor you are on differ in any way",
-            "from this one, tell the lift that it does not.",
-            "",
-            "Should it not differ, tell the lift that it does.",
-            "",
-            "Answer wrongly and you will be returned to the fifth.",
+            "Breakfast is served on the ground floor",
+            "from six until half past nine.",
             "",
             "The stairs are not in service.",
+            "Guests are asked to use the lift.",
+            "",
+            "Please do not disturb the other guests.",
           ]
         : [
-            "The fifth floor is the ground floor.",
-            "",
-            "Should the floor you are on differ in any way",
-            "from this one, tell the lift so.",
-            "",
-            "Should it not differ, tell the lift that instead.",
-            "",
-            "Answer wrongly and you will be returned to the fifth.",
+            "Breakfast is served on the fifth floor",
+            "from six until half past nine.",
             "",
             "The stairs are not in service.",
+            "Guests are asked to use the lift.",
+            "",
+            "Please do not disturb the other rooms.",
           ],
     },
   ];
