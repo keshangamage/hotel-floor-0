@@ -5,6 +5,7 @@ import {
   isServed, requestFloor, stepElevator, type ElevatorConfig, type ElevatorState,
 } from "../game/systems/elevator";
 import { FLOOR_5_LAYOUT } from "../game/data/floor";
+import { BUTTON_FACE, PLATE, panelButtons } from "../game/data/panel";
 
 let fail = 0;
 const check = (n: string, ok: boolean, d = "") => { if (!ok) fail++; console.log(`${ok?"PASS":"FAIL"}  ${n}${d?"  "+d:""}`); };
@@ -133,6 +134,71 @@ check("the switch targets a real lamp",
   FLOOR_5_LAYOUT.lamps.some(l => l.id === sw.targetLampId), sw.targetLampId);
 check("the switch is at reachable height", sw.position[1] > 0.9 && sw.position[1] < 1.5,
   `y=${sw.position[1].toFixed(2)}`);
+
+// The panel's layout, in every state it can be in. Two buttons on one spot is
+// invisible in the code and total in play: the player aims at one and presses
+// the other, and on this panel the other one shuts the doors.
+{
+  const STATES = [
+    { trapped: false, offered: null },
+    { trapped: true, offered: null },
+    { trapped: true, offered: -1 },
+    { trapped: true, offered: -3 },
+    { trapped: true, offered: G_FLOOR },
+  ];
+
+  let stacked = "";
+  let offPlate = "";
+  let unopenable = 0;
+
+  for (const state of STATES) {
+    const rows = panelButtons(ELEVATOR_CONFIG.servedFloors, state.trapped, state.offered);
+    const name = `trapped=${state.trapped} offered=${state.offered}`;
+
+    for (let i = 0; i < rows.length; i += 1) {
+      for (let j = i + 1; j < rows.length; j += 1) {
+        const a = rows[i]!;
+        const b = rows[j]!;
+        if (Math.abs(a.x - b.x) < BUTTON_FACE && Math.abs(a.y - b.y) < BUTTON_FACE) {
+          stacked += ` ${a.id} on ${b.id} (${name});`;
+        }
+      }
+      const row = rows[i]!;
+      if (Math.abs(row.x) + BUTTON_FACE / 2 > PLATE.width / 2) offPlate += ` ${row.id} off the side;`;
+      if (Math.abs(row.y) + BUTTON_FACE / 2 > PLATE.height / 2) offPlate += ` ${row.id} off the end;`;
+    }
+
+    // The panel is dead by design from floor zero on, so this is the only thing
+    // standing between the player and a car they cannot get out of.
+    if (!rows.some((row) => row.kind === "open")) unopenable += 1;
+  }
+
+  check("no two buttons share a spot", stacked === "", stacked || `${STATES.length} states`);
+  check("and every one is on the plate", offPlate === "", offPlate);
+  check("the doors can always be opened from inside", unopenable === 0,
+    "whatever the rest of the panel is doing");
+}
+
+// The softlock itself: arrive on floor zero, let the doors shut, and try to
+// get out. Nothing is offered yet, so every other button on the panel is dead.
+{
+  const state = createElevator(0);
+  state.phase = "open";
+  state.doors = 1;
+  const rows = panelButtons(ELEVATOR_CONFIG.servedFloors, true, null);
+
+  // Standing still while the hold runs out.
+  for (let t = 0; t < 12; t += 1) stepElevator(state, 0.6, ELEVATOR_CONFIG);
+  check("the doors shut on a player who does not step out", state.doors === 0,
+    `phase ${state.phase}`);
+
+  const opener = rows.find((row) => row.kind === "open");
+  check("but the panel still has a button that opens them", opener !== undefined);
+  if (opener) callElevator(state, ELEVATOR_CONFIG);
+  for (let t = 0; t < 4; t += 1) stepElevator(state, 0.4, ELEVATOR_CONFIG);
+  check("and pressing it lets them out", state.doors === 1 && state.phase === "open",
+    `doors ${state.doors.toFixed(2)}`);
+}
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

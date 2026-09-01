@@ -50,11 +50,17 @@ const reset = () => useGameStore.setState({ trapped: false, offered: null, floor
 {
   const { readFileSync } = await import("node:fs");
   const lift = readFileSync("apps/web/components/environment/Elevator.tsx", "utf8");
+  const { panelButtons } = await import("../game/data/panel");
+  const { ELEVATOR_CONFIG } = await import("../game/systems/elevator");
+  const numbered = panelButtons(ELEVATOR_CONFIG.servedFloors, false, null)
+    .filter((row) => row.kind === "floor")
+    .map((row) => row.floor);
   check("the panel offers the floors the hotel has",
-    /servedFloors[\s\S]{0,60}\.map\(/.test(lift),
+    [5, 4, 3, 2, 1, 0].every((floor) => numbered.includes(floor)),
     "so pressing 0 is an accident among ordinary buttons");
   // The floors under the building are not on the panel to begin with.
-  check("but not the ones beneath it", /\.filter\(\(floor\) => floor >= 0\)/.test(lift));
+  check("but not the ones beneath it", numbered.every((floor) => (floor ?? 0) >= 0),
+    numbered.join(", "));
   check("a trapped lift refuses every one of them",
     /if \(trapped && floor !== offered\)/.test(lift));
   // Silence would read as the game missing the input rather than refusing it.
@@ -155,8 +161,14 @@ const reset = () => useGameStore.setState({ trapped: false, offered: null, floor
   const lift = readFileSync("apps/web/components/environment/Elevator.tsx", "utf8");
   check("the dead panel refuses everything but that floor",
     /if \(trapped && floor !== offered\)/.test(lift));
+  // The layout is data now, so this asks the layout rather than the JSX.
+  const { panelButtons } = await import("../game/data/panel");
+  const { ELEVATOR_CONFIG } = await import("../game/systems/elevator");
+  const before = panelButtons(ELEVATOR_CONFIG.servedFloors, true, null);
+  const after = panelButtons(ELEVATOR_CONFIG.servedFloors, true, -1);
   check("and grows a button for it that was not there before",
-    /trapped && offered !== null \?/.test(lift));
+    !before.some((row) => row.kind === "offered")
+      && after.some((row) => row.kind === "offered" && row.floor === -1));
 }
 
 // A floor under the building carries the numbers of the player's own, which is
@@ -201,6 +213,21 @@ const reset = () => useGameStore.setState({ trapped: false, offered: null, floor
   check("and stops where there is nothing further to read",
     page(chain[chain.length - 1] as number)?.opens === undefined,
     `floor ${chain[chain.length - 1]} is the end`);
+
+  // A page in the dark is a page that is not there. This floor has no doors
+  // and no numbers, so the page is the only thing on it, and if it cannot be
+  // seen the run stops on floor zero.
+  let unlit = "";
+  for (const floor of chain) {
+    const spec = generateFloor(floor);
+    const found = page(floor);
+    if (!found) continue;
+    const nearest = Math.min(...spec.lamps
+      .filter((lamp) => lamp.lit)
+      .map((lamp) => Math.abs(lamp.z - found.position[2])));
+    if (nearest > 1.5) unlit += ` floor ${floor} is ${nearest.toFixed(1)}m from a light;`;
+  }
+  check("every page lies in a pool of light", unlit === "", unlit || "on all of them");
 
   // Every floor of it has to be reachable by the lift, or the chain stops
   // somewhere the player cannot follow.
