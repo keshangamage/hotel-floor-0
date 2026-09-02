@@ -9,6 +9,7 @@ export function Box({ spec }: { spec: BoxSpec }) {
       geometry={geometryFor(spec.size, spec.kind)}
       material={MATERIALS[spec.kind]}
       position={spec.position}
+      rotation={spec.rotation}
       castShadow={CASTS_SHADOW[spec.kind]}
       receiveShadow
     />

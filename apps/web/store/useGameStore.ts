@@ -76,6 +76,8 @@ interface GameState {
   /** The note being read, or null. */
   reading: NoteSpec | null;
   flashlightOn: boolean;
+  /** Frame timing on screen. Off by default, and not saved. */
+  showStats: boolean;
   /** Master volume, 0 to 1. */
   volume: number;
   /** Multiplies the mouse look speed. */
@@ -93,6 +95,7 @@ interface GameState {
   recharge: () => void;
   setFloorNumber: (floor: number) => void;
   toggleFlashlight: () => void;
+  toggleStats: () => void;
   readNote: (note: NoteSpec | null) => void;
   setTrapped: () => void;
   offer: (floor: number) => void;
@@ -124,6 +127,7 @@ export const useGameStore = create<GameState>()(
       run: 0,
       reading: null,
       flashlightOn: false,
+      showStats: false,
       volume: 0.7,
       sensitivity: 1,
       setVolume: (volume) => set({ volume }),
@@ -164,6 +168,7 @@ export const useGameStore = create<GameState>()(
       // and nothing happening, which is what a flat torch does.
       toggleFlashlight: () =>
         set((state) => ({ flashlightOn: state.flashlightOn ? false : state.torch > 0 })),
+      toggleStats: () => set((state) => ({ showStats: !state.showStats })),
       readNote: (reading) => set({ reading }),
       // Once only, and never undone: the lift does not start working again.
       setTrapped: () => set({ trapped: true }),

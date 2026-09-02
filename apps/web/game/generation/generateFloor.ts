@@ -51,6 +51,8 @@ function groundFloor(seed: string): FloorSpec {
   const lamps = [];
   for (let i = 0; i < FIXTURES; i += 1) {
     lamps.push({
+      // Named, because on this floor they can go out behind the player.
+      id: `ground-${i}`,
       z: to - 1 - i * ROOM_PITCH,
       castShadow: false,
       // Every fourth, so the corridor is a chain of pools with dark between.
@@ -66,6 +68,8 @@ function groundFloor(seed: string): FloorSpec {
   // corridor is the only thing here to aim at, and this floor has no doors,
   // no numbers and a lift that has stopped answering.
   lamps.push({
+    // Deliberately unnamed, so nothing can put this one out: it is the only
+    // thing on the floor to walk towards, and the page is under it.
     z: to - 1 - (FIXTURES - 1) * ROOM_PITCH - 2.6,
     castShadow: false,
     lit: true,

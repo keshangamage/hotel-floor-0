@@ -148,5 +148,33 @@ for (const floor of [5, 4, 0]) {
   console.log(`      light counts seen: ${[...counts].sort((a, b) => a - b).join(", ")}`);
 }
 
+// The mirror is the only thing in the game that draws the scene twice, so how
+// many of them there are is a budget like any other.
+{
+  const { buildFloor } = await import("../game/data/floor");
+  const { generateFloor } = await import("../game/generation/generateFloor");
+  const { readFileSync } = await import("node:fs");
+  const { CORRIDOR_HALF_WIDTH } = await import("../game/data/dimensions");
+
+  const worst = Math.max(...[5, 4, 3, 2, 1, 0, -1, -2, -3].map((floor) =>
+    buildFloor(generateFloor(floor)).mirrors.length));
+  check("no floor has more than one mirror", worst <= 1, `${worst} at the worst`);
+
+  // Inside a room. From the corridor there is a wall in front of it, and a
+  // culled mesh never reaches the reflection pass at all.
+  const off = [5, 4, 3, 2, 1].flatMap((floor) => {
+    const layout = buildFloor(generateFloor(floor));
+    return layout.mirrors.filter((m) => Math.abs(m.position[0]) < CORRIDOR_HALF_WIDTH);
+  });
+  check("and it is in a room, not the corridor", off.length === 0,
+    off.length ? `${off.length} out in the open` : "behind a wall from out there");
+
+  // Small and unblurred, because blur is more passes on top of the pass.
+  const source = readFileSync("apps/web/components/environment/Mirror.tsx", "utf8");
+  check("it renders at a low resolution", /resolution=\{256\}/.test(source));
+  check("and does not blur", /blur=\{\[0, 0\]\}/.test(source),
+    "blur is extra passes on the most expensive object in the game");
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

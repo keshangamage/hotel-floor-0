@@ -270,5 +270,99 @@ const reset = () => useGameStore.setState({ trapped: false, offered: null, floor
       readFileSync("apps/web/components/environment/Note.tsx", "utf8")));
 }
 
+// Beginning a different hotel. Until now the only way out of a run was to
+// finish it, and nothing on the way in said the game had kept one at all.
+{
+  const before = store().seed;
+  useGameStore.setState({
+    floorNumber: -2,
+    trapped: true,
+    offered: -3,
+    carrying: { "key-guest": true, ledger: true },
+    unlocked: { "room-503": true },
+    spent: { "cell-4": true },
+    marked: { "3": true, "1": true },
+    visited: { "5": true, "4": true, "3": true },
+    lightsOff: { "room-505-bedside": true },
+    torch: 0.1,
+    reading: null,
+  });
+
+  store().restart();
+  const after = store();
+
+  check("a different hotel is a different hotel", after.seed !== before,
+    `${before} -> ${after.seed}`);
+  check("and starts at the top", after.floorNumber === 5 && after.phase === "menu");
+  // Everything a run accumulates. A key or a mark carried across would be the
+  // player finding a door already unlocked in a building they have not entered.
+  const leftovers = ([
+    ["carrying", after.carrying],
+    ["unlocked", after.unlocked],
+    ["spent", after.spent],
+    ["marked", after.marked],
+    ["visited", after.visited],
+    ["lightsOff", after.lightsOff],
+  ] as const).filter(([, held]) => Object.keys(held).length > 0).map(([name]) => name);
+  check("and carries nothing over from the last one", leftovers.length === 0,
+    leftovers.join(", ") || "six records cleared");
+  check("the lift answers again", !after.trapped && after.offered === null);
+  check("and the torch is full", after.torch === 1);
+  check("and the scene is rebuilt rather than left standing", after.run > 0,
+    "the player and the car hold position otherwise");
+
+  reset();
+}
+
+// The way in has to offer it, and only when there is something to leave.
+{
+  const { readFileSync } = await import("node:fs");
+  const menu = readFileSync("apps/web/components/ui/Overlay.tsx", "utf8");
+  check("the menu offers a different hotel", /Or begin a different hotel/.test(menu));
+  check("only once a run is underway", /phase === "menu" && underway/.test(menu));
+  check("and says where the last one stopped", /You left off on floor/.test(menu),
+    "or nothing ever tells the player the game saved it");
+}
+
+// Floor zero puts itself out behind the player.
+//
+// It is never judged, so nothing on it has to match anything, which is what
+// makes this safe: on any other floor a lamp going out is an anomaly the
+// player is meant to write down.
+{
+  const { generateFloor } = await import("../game/generation/generateFloor");
+  const { buildFloor } = await import("../game/data/floor");
+  const { readFileSync } = await import("node:fs");
+
+  const ground = generateFloor(0);
+  const layout = buildFloor(ground);
+  const named = layout.lamps.filter((lamp) => lamp.id?.startsWith("ground-"));
+  check("the corridor's lamps can be put out", named.length >= 3,
+    `${named.length} of ${layout.lamps.length}`);
+
+  // The one over the page is not among them. It is the only thing on the floor
+  // to walk towards, and putting it out would leave nothing to find.
+  const page = layout.notes.find((note) => note.id === "floor-0-notice")!;
+  const overhead = layout.lamps
+    .filter((lamp) => lamp.lit !== false)
+    .sort((a, b) =>
+      Math.abs(a.position[2] - page.position[2]) - Math.abs(b.position[2] - page.position[2]))[0]!;
+  check("but the one over the page is not one of them", overhead.id === undefined,
+    "or the walk ends in the dark with nothing in it");
+
+  // And nowhere else. Only this floor has lamps that anything can reach.
+  const elsewhere = [5, 4, 3, 2, 1, -1, -2, -3].filter((floor) =>
+    buildFloor(generateFloor(floor)).lamps.some((lamp) => lamp.id?.startsWith("ground-")));
+  check("and no other floor has any", elsewhere.length === 0,
+    elsewhere.join(", ") || "eight floors");
+
+  const driver = readFileSync("apps/web/components/horror/GoingOut.tsx", "utf8");
+  check("it happens on floor zero and nowhere else",
+    /spec\.floorNumber !== ENDING_FLOOR\) return/.test(driver));
+  check("and only once the lamp is behind them",
+    /camera\.position\.z > pool\.z - BEHIND\) continue/.test(driver),
+    "a light snapping off in view is a switch thrown at the player");
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

@@ -6,7 +6,22 @@ import {
   DOOR_HEIGHT,
   DOOR_RECESS,
   DOOR_WIDTH,
+  BOARD_DEPTH,
+  BOARD_HEIGHT,
+  BOARD_HEIGHTS,
+  NOSING,
+  RAIL_HEIGHT,
+  RAIL_SECTION,
+  RISER_THICKNESS,
   SLAB_THICKNESS,
+  STAIR_DEPTH,
+  STAIR_INSET,
+  STAIR_SOFFIT,
+  STAIR_WIDTH,
+  STEP_COUNT,
+  STEP_RISE,
+  STEP_RUN,
+  TREAD_THICKNESS,
   WALL_THICKNESS,
   WINDOW_ACROSS,
   WINDOW_FRAME_BASE,
@@ -20,7 +35,7 @@ import { ELEVATOR, buildElevator } from "./elevator";
 import { furnishHotelRoom, type RoomFrame } from "./furniture";
 import { DEFAULT_SEED, generateFloor } from "../generation/generateFloor";
 import type {
-  BoxSpec, DoorSpec, FloorLayout, FloorSpec, ItemSpec, LampSpec, PaintingSpec, NoteSpec,
+  BoxSpec, DoorSpec, FloorLayout, FloorSpec, ItemSpec, LampSpec, MirrorSpec, PaintingSpec, NoteSpec,
   PropSpec, RoomSpec, SwitchSpec, Vec3,
 } from "../types";
 
@@ -77,7 +92,7 @@ export const FIRST_PAGE: NoteSpec = {
     "the notice about breakfast. All of it.",
     "",
     "When one of them is not, write it down.",
-    "Press Q.",
+    "Press Q. Press R to read back what you have.",
     "",
     "The fifth is only the floor I have seen most of.",
     "That is not the same as it being the right one.",
@@ -246,12 +261,124 @@ const KEPT = {
   ],
 };
 
+/**
+ * The stairwell, boarded shut.
+ *
+ * The notices have been telling the player to use the lift since the fifth
+ * floor. This is what they were talking about, and it is closed on every floor
+ * of the building, including the one they cannot leave: when a lift stops
+ * answering, the stairs are the first thing anybody tries.
+ *
+ * Boarded rather than bricked. A wall says there was never a way out of this
+ * building; a flight going up into the dark behind three planks says there is
+ * one and it is not available.
+ */
+function stairwell(end: number): { opening: Opening; boxes: BoxSpec[] } {
+  const centre = end - STAIR_INSET;
+  const side = -1;
+  const across: [number, number] = [centre - STAIR_WIDTH / 2, centre + STAIR_WIDTH / 2];
+  const shell: [number, number] = [across[0] - WALL_THICKNESS, across[1] + WALL_THICKNESS];
+  const order = (a: number, b: number): [number, number] => (a < b ? [a, b] : [b, a]);
+  /** Metres into the alcove, as an x. */
+  const into = (d: number) => side * (OUTER_X + d);
+  const run = STEP_COUNT * STEP_RUN;
+  const rise = STEP_COUNT * STEP_RISE;
+  const back = STAIR_DEPTH + WALL_THICKNESS;
+
+  const boxes: BoxSpec[] = [
+    slab("floor", { x: order(into(0), into(back)), y: [-SLAB_THICKNESS, 0], z: shell }),
+    // The ceiling covers the lower half only. A flight that stops under a flat
+    // slab is a flight to nowhere, and this one has somewhere to be: it climbs
+    // out through the opening, which is also the only reason the handrail has
+    // anywhere to go.
+    slab("ceiling", {
+      x: order(into(0), into(STAIR_SOFFIT)),
+      y: [CEILING_HEIGHT, CEILING_HEIGHT + SLAB_THICKNESS],
+      z: shell,
+    }),
+    boxFromBounds("wall", {
+      x: order(into(STAIR_DEPTH), into(back)),
+      y: [0, CEILING_HEIGHT],
+      z: shell,
+    }),
+  ];
+  for (const edge of [shell[0], across[1]]) {
+    boxes.push(boxFromBounds("wall", {
+      x: order(into(0), into(back)),
+      y: [0, CEILING_HEIGHT],
+      z: [edge, edge + WALL_THICKNESS],
+    }));
+  }
+
+  // A riser and a tread each, rather than a column standing on the floor.
+  // Closed risers hide the underside just as well, and every riser is the same
+  // box as every other, where twelve columns are twelve different heights and
+  // so twelve geometries the cache cannot share.
+  for (let i = 0; i < STEP_COUNT; i += 1) {
+    const top = (i + 1) * STEP_RISE;
+    boxes.push(boxFromBounds("wood", {
+      x: order(into(i * STEP_RUN), into(i * STEP_RUN + RISER_THICKNESS)),
+      y: [i * STEP_RISE, top - TREAD_THICKNESS],
+      z: across,
+    }));
+    // Standing proud of the riser under it, which is what casts the line of
+    // shadow that reads as a stair from across a corridor.
+    boxes.push(boxFromBounds("wood", {
+      x: order(into(i * STEP_RUN - NOSING), into((i + 1) * STEP_RUN)),
+      y: [top - TREAD_THICKNESS, top],
+      z: across,
+    }));
+  }
+
+  // A handrail against one wall, following the pitch. This is the only thing
+  // in the building that is not square to the world, and it is the difference
+  // between a staircase and a stack of blocks.
+  boxes.push({
+    kind: "wood",
+    position: [into(run / 2), rise / 2 + RAIL_HEIGHT, across[0] + RAIL_SECTION],
+    size: [Math.hypot(run, rise), RAIL_SECTION, RAIL_SECTION],
+    collides: false,
+    rotation: [0, 0, -Math.atan2(rise, run)],
+  });
+
+  // The flight collides as one slab under the pitch line. Architecture rather
+  // than furniture, so it is a wall: nothing can reach it while the boards are
+  // up, but a stair the player could walk through is not a stair.
+  boxes.push(boxFromBounds("wall", {
+    x: order(into(0), into(run)),
+    y: [0, rise],
+    z: across,
+  }, true, false));
+
+  // The boards do not collide. One invisible panel across the whole aperture
+  // does that, so the gaps between them cannot be walked through.
+  for (const y of BOARD_HEIGHTS) {
+    boxes.push(boxFromBounds("wood", {
+      x: order(side * CORRIDOR_HALF_WIDTH, side * (CORRIDOR_HALF_WIDTH + BOARD_DEPTH)),
+      y: [y, y + BOARD_HEIGHT],
+      z: across,
+    }, false));
+  }
+  boxes.push(boxFromBounds("wall", {
+    x: order(side * CORRIDOR_HALF_WIDTH, side * OUTER_X),
+    y: [0, DOOR_HEIGHT],
+    z: across,
+  }, true, false));
+
+  return {
+    opening: { at: centre, width: STAIR_WIDTH, height: DOOR_HEIGHT, recess: 0, leaf: "open" },
+    boxes,
+  };
+}
+
 export function buildFloor(spec: FloorSpec): FloorLayout {
   const { corridorFrom: from, corridorTo: end } = spec;
   const length: [number, number] = [from, end];
   const full: [number, number] = [-OUTER_X, OUTER_X];
+  const stairs = stairwell(end);
 
   const boxes: BoxSpec[] = [
+    ...stairs.boxes,
     slab("floor", { x: full, y: [-SLAB_THICKNESS, 0], z: length }),
     slab("ceiling", {
       x: full,
@@ -276,7 +403,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
       outerFace: -OUTER_X,
       span: length,
       height: CEILING_HEIGHT,
-      openings: spec.rooms.filter((r) => r.side === -1).map(doorway),
+      openings: [...spec.rooms.filter((r) => r.side === -1).map(doorway), stairs.opening],
       trim: true,
     }),
 
@@ -324,6 +451,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
   const props: PropSpec[] = [];
   const notes: NoteSpec[] = [];
   const items: ItemSpec[] = [];
+  const mirrors: MirrorSpec[] = [];
   const keyedRoom = spec.rooms.find((r) => r.keyed);
 
   for (const spec_ of spec.rooms) {
@@ -408,6 +536,20 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
       });
     }
 
+    // A mirror on the wall the door is in, so it is behind the player as they
+    // come in and they meet it by turning round. Inside a room, which is what
+    // keeps the second render pass off the corridor: from out there it is
+    // behind a wall and culled before it costs anything.
+    if (spec_.furnished && spec.anomaly?.kind !== "mirror-gone") {
+      mirrors.push({
+        id: `mirror-${spec_.number}`,
+        position: [spec_.side * (OUTER_X + 0.03), 1.45, spec_.doorZ + spec_.side * 1.05],
+        yaw: (spec_.side * Math.PI) / 2,
+        width: 0.62,
+        height: 0.84,
+      });
+    }
+
     if (!spec_.furnished) continue;
 
     const furnishing = furnishHotelRoom(
@@ -465,6 +607,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
   }
 
   const lamps: LampSpec[] = spec.lamps.map((lamp) => ({
+    id: lamp.id,
     position: [0, CEILING_HEIGHT, lamp.z],
     // A flickering fixture never casts: rebuilding a shadow map every frame
     // costs more than the whole rest of the corridor's lighting.
@@ -540,6 +683,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     paintings: corridorPaintings(spec),
     notes: [...notes, ...endingNote(spec)],
     items,
+    mirrors,
     spawn,
     spawnYaw: start ? (start.side === 1 ? Math.PI / 2 : -Math.PI / 2) : Math.PI,
   };

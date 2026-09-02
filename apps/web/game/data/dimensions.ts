@@ -48,3 +48,42 @@ export const EYE_HEIGHT = 1.62;
 export const CROUCH_EYE_HEIGHT = 1.05;
 /** Collision height while crouched. Lower than standing so low gaps are passable. */
 export const CROUCH_HEIGHT = 1.2;
+
+/**
+ * The stairwell off the lift lobby.
+ *
+ * Every room notice says the stairs are not in service and asks guests to use
+ * the lift. Until now that was a line about something the player had never
+ * been shown. It sits between the last room and the lift shaft, which is the
+ * only clear stretch of wall on the floor.
+ */
+export const STAIR_WIDTH = 1.5;
+export const STAIR_DEPTH = 3.4;
+/** From the lift wall to the middle of the opening. */
+export const STAIR_INSET = 1.15;
+
+/**
+ * A flight the player can see and never climb.
+ *
+ * Real proportions, because they are what the eye checks without being asked:
+ * twelve risers of 173mm against a 280mm going is an ordinary stair, and
+ * anything steeper reads as a ladder or a prop.
+ */
+export const STEP_COUNT = 12;
+export const STEP_RUN = 0.28;
+export const STEP_RISE = 0.1733;
+export const TREAD_THICKNESS = 0.045;
+export const RISER_THICKNESS = 0.032;
+/** How far the tread stands proud of the riser under it. */
+export const NOSING = 0.028;
+
+/** Ceiling over the lower half only, so the flight climbs out through it. */
+export const STAIR_SOFFIT = 2.7;
+/** Handrail: height above the pitch line, and the size of its section. */
+export const RAIL_HEIGHT = 0.9;
+export const RAIL_SECTION = 0.055;
+
+/** Boards across the opening, by the height of their lower edge. */
+export const BOARD_HEIGHTS = [0.34, 0.94, 1.54] as const;
+export const BOARD_DEPTH = 0.055;
+export const BOARD_HEIGHT = 0.15;

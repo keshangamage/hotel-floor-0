@@ -5,9 +5,11 @@ import { useMemo } from "react";
 
 import { Doors } from "@/components/environment/Doors";
 import { Figure } from "@/components/horror/Figure";
+import { GoingOut } from "@/components/horror/GoingOut";
 import { Elevator } from "@/components/environment/Elevator";
 import { FloorGeometry } from "@/components/environment/FloorGeometry";
 import { Items } from "@/components/environment/Item";
+import { Mirrors } from "@/components/environment/Mirror";
 import { Notes } from "@/components/environment/Note";
 import { Paintings } from "@/components/environment/Paintings";
 import { Props } from "@/components/environment/Props";
@@ -29,6 +31,7 @@ import { ColliderProvider } from "./Colliders";
 import { Effects } from "./Effects";
 import { EnvironmentProbe } from "./EnvironmentProbe";
 import { InteractionDriver, InteractionProvider } from "./Interactions";
+import { PerfProbe } from "./PerfProbe";
 
 /**
  * Everything belonging to one floor. Regenerating the layout swaps the level in
@@ -58,6 +61,7 @@ function Scene() {
         />
         <Notes notes={layout.notes} />
         <Items items={layout.items} />
+        <Mirrors mirrors={layout.mirrors} />
         {/* Doors register their frame callback before the player, so
             colliders are already positioned when movement resolves. */}
         <Doors layout={layout} />
@@ -66,6 +70,8 @@ function Scene() {
         {/* Keyed on the floor: being spent is its only state, and each floor
             under the hotel gets its own. */}
         <Figure key={floorNumber} spec={spec} />
+        {/* Floor zero only, and keyed with it so a new visit is a new walk. */}
+        <GoingOut key={`out-${floorNumber}`} spec={spec} layout={layout} />
         <Switches layout={layout} />
         <InputActions />
         <Player layout={layout} />
@@ -109,6 +115,8 @@ export default function GameCanvas() {
       {/* Unprompted sound: the building settling, a failing fitting, a voice. */}
       <Ambience />
       <Effects />
+      {/* Last, so it times a whole frame rather than part of one. */}
+      <PerfProbe />
     </Canvas>
   );
 }

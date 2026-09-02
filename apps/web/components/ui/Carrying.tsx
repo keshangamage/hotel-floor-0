@@ -31,7 +31,7 @@ export function Carrying() {
           key={id}
           className="font-mono text-[0.6rem] uppercase tracking-[0.3em] text-neutral-500"
         >
-          {id === "key-guest" ? "Room key" : id === "ledger" ? "Notebook  ·  Q" : id}
+          {id === "key-guest" ? "Room key" : id === "ledger" ? "Notebook  ·  Q  R" : id}
         </li>
       ))}
       {written && (

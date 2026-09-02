@@ -33,6 +33,41 @@ export const ELEVATOR_CONFIG: ElevatorConfig = {
   servedFloors: [5, 4, 3, 2, 1, 0, -1, -2, -3, G_FLOOR],
 };
 
+/**
+ * How long the car takes, in seconds.
+ *
+ * The one part of the game that can lengthen as it goes without disturbing
+ * anything: the floors themselves have to stay identical or the comparison the
+ * whole game rests on stops working, and the ride between them is not a floor.
+ *
+ * It gets slower the further under the hotel it goes. A player who has ridden
+ * five to four a dozen times knows what that ride costs, so the ride to minus
+ * three telling them it costs more is a thing they can feel without being told.
+ */
+export function travelTime(from: number, to: number, config: ElevatorConfig): number {
+  const distance = Math.abs(to - from);
+  if (distance === 0) return 0.001;
+
+  // The last ride of all takes exactly as long as the guest wrote down.
+  if (to === G_FLOOR) return ELEVEN_SECONDS;
+
+  // Only the part of the journey below the ground drags.
+  const under = Math.max(0, -to);
+  return Math.max(0.001, distance * config.travelPerFloor * (1 + under * DRAG));
+}
+
+/** How much longer each floor under the hotel makes the ride. */
+const DRAG = 0.28;
+
+/**
+ * The ride the guest counted, on a page the player finds in a locked room:
+ * eleven seconds from five to four, and eleven seconds is a long way down.
+ *
+ * He was not describing this lift on its ordinary business. He was describing
+ * the last ride, the one after the last page, and the player takes it once.
+ */
+export const ELEVEN_SECONDS = 11;
+
 export interface ElevatorState {
   phase: ElevatorPhase;
   /** 0 shut, 1 fully open. */
@@ -117,8 +152,7 @@ export function stepElevator(state: ElevatorState, dt: number, config: ElevatorC
       break;
 
     case "travelling": {
-      const distance = Math.abs((state.target ?? state.floor) - state.travelFrom);
-      const duration = Math.max(0.001, distance * config.travelPerFloor);
+      const duration = travelTime(state.travelFrom, state.target ?? state.floor, config);
       state.travel = Math.min(1, state.travel + dt / duration);
       if (state.travel >= 1) {
         state.floor = state.target ?? state.floor;
