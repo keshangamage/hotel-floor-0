@@ -161,7 +161,9 @@ const FLOORS = [5, 4, 3, 2, 1, -1, -2, -3];
   let ringing = 0;
   for (const seed of SEEDS) {
     for (const floor of FLOORS) {
-      if (phones(floor, seed) !== 1) missing += ` ${seed}/${floor};`;
+      // Unless the floor's fault is that the telephone is not there.
+      const absent = generateFloor(floor, seed).anomaly?.kind === "phone-gone";
+      if (phones(floor, seed) !== (absent ? 0 : 1)) missing += ` ${seed}/${floor};`;
       if (generateFloor(floor, seed).anomaly?.kind === "telephone") ringing += 1;
     }
   }

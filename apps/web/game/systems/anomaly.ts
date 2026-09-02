@@ -39,7 +39,8 @@ export type AnomalyKind =
   | "following"
   | "telephone"
   | "key-gone"
-  | "phone-gone";
+  | "phone-gone"
+  | "mirror-gone";
 
 export interface Anomaly {
   readonly kind: AnomalyKind;
@@ -90,6 +91,7 @@ const SUBTLETY: Record<AnomalyKind, 1 | 2 | 3> = {
   "door-opens": 2,
   "telephone": 2,
   "key-gone": 2,
+  "mirror-gone": 2,
   // Needs the player to already know the hotel.
   "following": 3,
   "chair-creeps": 3,
@@ -130,6 +132,7 @@ export const ANOMALY_KINDS: readonly AnomalyKind[] = [
   "telephone",
   "key-gone",
   "phone-gone",
+  "mirror-gone",
   "chair-creeps",
   "door-opens",
   "painting-turns",
@@ -167,6 +170,7 @@ export const CARRIED: ReadonlySet<AnomalyKind> = new Set<AnomalyKind>([
   // Things that are simply not where they are kept.
   "key-gone",
   "phone-gone",
+  "mirror-gone",
 ]);
 
 export const isCarried = (kind: AnomalyKind): boolean => CARRIED.has(kind);
@@ -213,6 +217,7 @@ function describe(kind: AnomalyKind): string {
     case "telephone": return "a telephone is ringing behind the locked door";
     case "key-gone": return "the key is not on the desk it is left on";
     case "phone-gone": return "the telephone is gone from the locked room";
+    case "mirror-gone": return "the mirror is off the wall of the room";
     case "chair-creeps": return "the chair is not where it was left";
     case "door-opens": return "a locked door has come open behind you";
     case "painting-turns": return "a picture is not the one that was hanging there";
@@ -301,6 +306,7 @@ export function applyAnomaly(spec: FloorSpec, anomaly: Anomaly | null): FloorSpe
     case "telephone":
     case "key-gone":
     case "phone-gone":
+    case "mirror-gone":
     case "chair-creeps":
     case "door-opens":
     case "painting-turns":

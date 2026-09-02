@@ -1,6 +1,6 @@
 import { LEDGER, buildFloor } from "../game/data/floor";
 import { generateFloor } from "../game/generation/generateFloor";
-import { isJudged, tally } from "../game/systems/ledger";
+import { isJudged, notebookPage, tally } from "../game/systems/ledger";
 
 let fail = 0;
 const check = (name: string, ok: boolean, detail = "") => {
@@ -85,6 +85,36 @@ const marks = (...floors: number[]) =>
   check("and only with the notebook in hand",
     /state\.carrying\[LEDGER\]/.test(
       readFileSync("apps/web/components/player/InputActions.tsx", "utf8")));
+}
+
+// Reading it back. It is the player's record, not the game's, so it has to
+// show what they wrote and never what was true.
+{
+  const walked = marks(4, 3, 2, 1);
+  const page = notebookPage(walked, marks(3, 1));
+
+  check("the notebook lists the floors walked", page.lines.length === 4,
+    page.lines.join(" / "));
+  check("newest at the top", page.lines[0]!.includes("4") && page.lines[3]!.includes("1"));
+  check("and says which were written down",
+    page.lines.filter((line) => /not as it was/.test(line)).length === 2);
+  check("and which were not",
+    page.lines[0]!.trim() === "Floor 4" && page.lines[2]!.trim() === "Floor 2");
+
+  // The floors that are never judged are not a record of anything.
+  const withEnds = notebookPage({ ...walked, "5": true, "0": true, "-4": true }, {});
+  check("the floors that cannot be wrong are not in it", withEnds.lines.length === 4,
+    withEnds.lines.join(" / "));
+
+  check("an empty notebook says so", notebookPage({}, {}).lines.join("") === "Nothing yet.");
+
+  // The proof that it cannot leak: it is not given the hotel at all, so two
+  // different hotels walked identically read exactly the same.
+  const a = notebookPage(walked, marks(3));
+  const b = notebookPage(walked, marks(3));
+  check("and it knows nothing about which floors were actually wrong",
+    JSON.stringify(a) === JSON.stringify(b) && !JSON.stringify(a).includes("seed"),
+    "it is the player's record, and it may be mistaken");
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);

@@ -24,6 +24,14 @@ export interface BoxSpec {
   readonly collides: boolean;
   /** false for collision-only boxes standing in for imported meshes. */
   readonly visible?: boolean;
+  /**
+   * Euler angles, for art that does not sit square to the world.
+   *
+   * Only ever on a box that does not collide. Collision resolves against axis
+   * aligned boxes, so a rotated collider would stop the player somewhere other
+   * than where it is drawn and nothing in the game would report it.
+   */
+  readonly rotation?: Vec3;
 }
 
 /** Mutable point, reused in place so the movement loop allocates nothing. */
@@ -138,6 +146,21 @@ export interface PropSpec {
   readonly scale?: number;
 }
 
+/**
+ * A mirror on a room wall.
+ *
+ * The only surface in the game that renders the scene a second time, so there
+ * is one of them and it lives inside a room: standing in the corridor, it is
+ * behind a wall and culled before it costs anything.
+ */
+export interface MirrorSpec {
+  readonly id: string;
+  readonly position: Vec3;
+  readonly yaw: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 /** A framed picture hung flat on a corridor wall. */
 export interface PaintingSpec {
   readonly id: string;
@@ -200,6 +223,8 @@ export interface FloorSpec {
     readonly z: number;
     readonly castShadow: boolean;
     readonly lit: boolean;
+    /** Set when something can put it out. */
+    readonly id?: string;
     /** A fixture that cannot make up its mind. */
     readonly flicker?: boolean;
   }[];
@@ -235,6 +260,7 @@ export interface FloorLayout {
   readonly paintings: readonly PaintingSpec[];
   readonly notes: readonly NoteSpec[];
   readonly items: readonly ItemSpec[];
+  readonly mirrors: readonly MirrorSpec[];
   /** Where the player's feet start. */
   readonly spawn: Vec3;
   /** Initial camera yaw, in radians. */

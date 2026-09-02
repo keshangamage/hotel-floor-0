@@ -149,5 +149,26 @@ const FLOOR = box([0, -0.1, 0], [80, 0.2, 80]);
     `deepest ${(worst * 1000).toFixed(1)}mm into the box`);
 }
 
+// Rotation is for art only. Everything in this file resolves against axis
+// aligned boxes, so a rotated collider would stop the player somewhere other
+// than where it is drawn, and nothing in the game would report the difference.
+{
+  const { generateFloor } = await import("../game/generation/generateFloor");
+  const { buildFloor } = await import("../game/data/floor");
+
+  const turned: string[] = [];
+  for (const floor of [5, 4, 3, 2, 1, 0, -1, -2, -3]) {
+    for (const box of buildFloor(generateFloor(floor)).boxes) {
+      if (box.rotation && box.collides) turned.push(`${box.kind} on floor ${floor}`);
+    }
+  }
+  check("no collider is rotated", turned.length === 0, turned.join(", ") || "nine floors");
+
+  // And the thing that needs it is using it, or the rule guards a feature
+  // nobody has.
+  const rotated = buildFloor(generateFloor(5)).boxes.filter((b) => b.rotation);
+  check("but the handrail is", rotated.length === 1, `${rotated.length} rotated boxes`);
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

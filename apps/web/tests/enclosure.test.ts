@@ -150,5 +150,39 @@ for (const seed of HOTELS) {
     `worst gap ${worst.toFixed(1)}m`);
 }
 
+// The stairwell. Its aperture is left open in the wall, so the checks above
+// are happy with it: they ask what is under and over each point, and an open
+// doorway has both. What actually stops anybody is one invisible panel, so
+// this walks a player into it instead.
+{
+  const { createColliderSet } = await import("../game/systems/colliders");
+  const { moveAndCollide } = await import("../game/systems/collision");
+  const { PLAYER_HEIGHT, STAIR_INSET, STAIR_WIDTH } = await import("../game/data/dimensions");
+  const colliderList = (layout: FloorLayout) => createColliderSet(layout.boxes).list;
+
+  for (const floor of [5, 0, -1]) {
+    const layout = buildFloor(generateFloor(floor));
+    const colliders = colliderList(layout);
+    const at = { x: 0, y: 0, z: 10 - STAIR_INSET };
+
+    // Straight at the opening, from the middle of the corridor.
+    for (let i = 0; i < 200; i += 1) {
+      moveAndCollide(at, { x: -0.05, y: -0.05, z: 0 }, PLAYER_HEIGHT, colliders);
+    }
+    check(`floor ${floor}: the stairs cannot be walked into`,
+      at.x > -CORRIDOR_HALF_WIDTH - 0.35,
+      `stopped at x=${at.x.toFixed(2)}, wall at ${-CORRIDOR_HALF_WIDTH}`);
+    check(`floor ${floor}: and cannot be climbed`, at.y < 0.05,
+      `ended at y=${at.y.toFixed(2)}`);
+
+    // But they are there to be seen, or the boards are a wall with a pattern.
+    const treads = layout.boxes.filter((b) =>
+      b.kind === "wood" && b.visible !== false && b.position[0] < -CORRIDOR_HALF_WIDTH
+      && Math.abs(b.position[2] - at.z) < STAIR_WIDTH);
+    check(`floor ${floor}: but they can be seen`, treads.length >= 12,
+      `${treads.length} pieces behind the boards`);
+  }
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

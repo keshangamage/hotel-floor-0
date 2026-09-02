@@ -7,7 +7,9 @@ export type InputAction =
   | "crouch"
   | "interact"
   | "flashlight"
-  | "record";
+  | "record"
+  | "review"
+  | "stats";
 
 /** Keyed by KeyboardEvent.code (physical position) so WASD survives AZERTY. */
 const BINDINGS: Readonly<Record<string, InputAction>> = {
@@ -27,6 +29,8 @@ const BINDINGS: Readonly<Record<string, InputAction>> = {
   KeyE: "interact",
   KeyF: "flashlight",
   KeyQ: "record",
+  KeyR: "review",
+  Backquote: "stats",
 };
 
 /** Keys the browser would otherwise scroll the page with. */

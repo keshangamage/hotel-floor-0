@@ -1,5 +1,7 @@
 import {
   ELEVATOR_CONFIG,
+  ELEVEN_SECONDS,
+  travelTime,
   G_FLOOR,
   floorLabel, callElevator, closeDoors, createElevator, displayFloor,
   isServed, requestFloor, stepElevator, type ElevatorConfig, type ElevatorState,
@@ -198,6 +200,61 @@ check("the switch is at reachable height", sw.position[1] > 0.9 && sw.position[1
   for (let t = 0; t < 4; t += 1) stepElevator(state, 0.4, ELEVATOR_CONFIG);
   check("and pressing it lets them out", state.doors === 1 && state.phase === "open",
     `doors ${state.doors.toFixed(2)}`);
+}
+
+// The ride. It is the only part of the game that can lengthen as it goes: the
+// floors have to stay identical or the comparison stops working, and the ride
+// between them is not a floor.
+{
+  const t = (from: number, to: number) => travelTime(from, to, ELEVATOR_CONFIG);
+
+  check("a ride inside the hotel is the plain one",
+    Math.abs(t(5, 4) - ELEVATOR_CONFIG.travelPerFloor) < 0.001,
+    `${t(5, 4).toFixed(1)}s`);
+  check("and further is longer, in proportion",
+    Math.abs(t(5, 1) - 4 * ELEVATOR_CONFIG.travelPerFloor) < 0.001,
+    `${t(5, 1).toFixed(1)}s for four floors`);
+
+  // Under the ground it drags, and each floor down drags more.
+  const under = [0, -1, -2, -3].map((floor) => t(floor + 1, floor));
+  const dragging = under.every((seconds, i) => i === 0 || seconds > (under[i - 1] as number));
+  check("every floor under the hotel takes longer than the one above it", dragging,
+    under.map((n) => `${n.toFixed(1)}s`).join(" -> "));
+  check("and the deepest is worth noticing",
+    (under[3] as number) / (under[0] as number) > 1.5,
+    `${under[0]!.toFixed(1)}s at the top against ${under[3]!.toFixed(1)}s at the bottom`);
+
+  // The page in the locked room says eleven seconds. This is the ride it means.
+  check("the last ride of all takes eleven seconds", t(-3, G_FLOOR) === ELEVEN_SECONDS,
+    "which is what the guest wrote down");
+  check("and nothing else does",
+    [[5, 4], [5, 0], [0, -1], [-2, -3]].every(([from, to]) => t(from!, to!) !== ELEVEN_SECONDS));
+
+  // A car asked for the floor it is on must not divide by nothing.
+  check("standing still is not a journey", t(3, 3) > 0 && Number.isFinite(t(3, 3)));
+}
+
+// And the machine actually takes that long, rather than the arithmetic sitting
+// unused beside a state machine that ignores it.
+{
+  const ride = (from: number, to: number) => {
+    const state = createElevator(from);
+    requestFloor(state, to, ELEVATOR_CONFIG);
+    let seconds = 0;
+    while (state.phase !== "opening" && seconds < 60) {
+      stepElevator(state, 1 / 60, ELEVATOR_CONFIG);
+      seconds += 1 / 60;
+    }
+    return seconds;
+  };
+
+  const shallow = ride(5, 4);
+  const deep = ride(-2, -3);
+  check("the car takes longer going down than across", deep > shallow,
+    `${shallow.toFixed(1)}s then ${deep.toFixed(1)}s`);
+  check("and the ride to G is the eleven seconds",
+    Math.abs(ride(-3, G_FLOOR) - ELEVEN_SECONDS) < 0.5,
+    `${ride(-3, G_FLOOR).toFixed(1)}s`);
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);

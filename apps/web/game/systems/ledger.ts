@@ -1,3 +1,4 @@
+import type { NoteSpec } from "../types";
 import { generateFloor } from "../generation/generateFloor";
 import { ENDING_FLOOR, REFERENCE_FLOOR } from "./anomaly";
 import { G_FLOOR } from "./elevator";
@@ -53,4 +54,38 @@ export function tally(
   }
 
   return { walked, wrong, written, caught, missed: wrong - caught };
+}
+
+/**
+ * The notebook, opened and read.
+ *
+ * Deliberately knows nothing about the hotel. It is built from what the player
+ * walked and what the player wrote and nothing else, so it cannot leak which
+ * floors were actually wrong: it is their record, not the game's, and the
+ * whole point of keeping it is that it might be mistaken.
+ */
+export function notebookPage(
+  visited: Readonly<Record<string, true>>,
+  marked: Readonly<Record<string, true>>,
+): NoteSpec {
+  const floors = Object.keys(visited)
+    .map(Number)
+    .filter((floor) => Number.isFinite(floor) && isJudged(floor))
+    // Down the page in the order they were walked.
+    .sort((a, b) => b - a);
+
+  const lines = floors.length === 0
+    ? ["Nothing yet."]
+    : floors.map((floor) => {
+      const name = `Floor ${floor}`.padEnd(10, " ");
+      return marked[String(floor)] ? `${name}  not as it was` : name;
+    });
+
+  return {
+    id: "notebook",
+    position: [0, 0, 0],
+    yaw: 0,
+    title: "The notebook",
+    lines,
+  };
 }

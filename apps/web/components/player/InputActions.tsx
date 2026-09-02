@@ -2,6 +2,7 @@ import { useFrame } from "@react-three/fiber";
 
 import { LEDGER } from "@/game/data/floor";
 import { input } from "@/game/systems/input";
+import { notebookPage } from "@/game/systems/ledger";
 import { useGameStore } from "@/store/useGameStore";
 
 /**
@@ -22,11 +23,18 @@ export function InputActions() {
     }
 
     if (input.consumePress("flashlight")) toggleFlashlight();
+    if (input.consumePress("stats")) state.toggleStats();
 
     // Only with the notebook in hand. Without it there is nothing to write in,
     // and a player who never found it is not quietly keeping a tally anyway.
     if (input.consumePress("record") && state.carrying[LEDGER]) {
       state.mark(state.floorNumber);
+    }
+
+    // Reading it back. Seven floors is more than anybody holds in their head,
+    // and a record you cannot check is not a record.
+    if (input.consumePress("review") && state.carrying[LEDGER]) {
+      state.readNote(notebookPage(state.visited, state.marked));
     }
   });
 
