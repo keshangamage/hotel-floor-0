@@ -89,8 +89,16 @@ const reset = () => useGameStore.setState({ trapped: false, offered: null, floor
     "a gain that jumps clicks on every pixel of a drag");
   check("sensitivity reaches the look controls",
     /pointerSpeed=\{POINTER_SPEED \* sensitivity\}/.test(read("components/player/LookControls.tsx")));
-  check("a click on a slider does not lock the pointer",
-    /stopPropagation/.test(read("components/ui/Overlay.tsx")));
+  // The overlay used to be the pointer lock target itself, so every control on
+  // it had to stop its own click from starting the game. Only one element is
+  // the target now, which is a stronger version of the same rule: nothing else
+  // on the menu can begin a run by being clicked.
+  const overlay = read("components/ui/Overlay.tsx");
+  const targets = overlay.split('id="pointer-lock-target"').length - 1;
+  check("exactly one thing on the menu locks the pointer", targets === 1,
+    `${targets} found`);
+  check("and it is a button, not the whole screen",
+    /<button\s+id="pointer-lock-target"/.test(overlay));
 }
 
 // Pausing has to freeze the world, not half of it.
@@ -318,8 +326,11 @@ const reset = () => useGameStore.setState({ trapped: false, offered: null, floor
 {
   const { readFileSync } = await import("node:fs");
   const menu = readFileSync("apps/web/components/ui/Overlay.tsx", "utf8");
-  check("the menu offers a different hotel", /Or begin a different hotel/.test(menu));
-  check("only once a run is underway", /phase === "menu" && underway/.test(menu));
+  check("the menu offers a different hotel", /Begin a different hotel/.test(menu));
+  check("only once a run is underway", /underway && \(/.test(menu));
+  // The brief asks for these three by name.
+  check("and has a way into settings and credits",
+    /setPanel\("settings"\)/.test(menu) && /setPanel\("credits"\)/.test(menu));
   check("and says where the last one stopped", /You left off on floor/.test(menu),
     "or nothing ever tells the player the game saved it");
 }
@@ -362,6 +373,57 @@ const reset = () => useGameStore.setState({ trapped: false, offered: null, floor
   check("and only once the lamp is behind them",
     /camera\.position\.z > pool\.z - BEHIND\) continue/.test(driver),
     "a light snapping off in view is a switch thrown at the player");
+}
+
+// A door on floor zero, on the way back.
+//
+// The player has just walked the length of a corridor with no rooms off it. On
+// the return there is a door in it, and the number on the door is their own.
+// This is the only place the architecture is allowed to be impossible, because
+// this floor is the only one nothing is compared against: on any other floor a
+// door that was not there before is a fault the player is meant to write down.
+{
+  const { generateFloor } = await import("../game/generation/generateFloor");
+  const { buildFloor } = await import("../game/data/floor");
+
+  const before = buildFloor(generateFloor(0));
+  const after = buildFloor(generateFloor(0), { returning: true });
+
+  check("floor zero has no doors on the way in", before.doors.length === 0,
+    `${before.doors.length} doors`);
+  check("and one on the way back", after.doors.length === 1);
+
+  const door = after.doors[0];
+  check("numbered with the player's own room", door?.label === "507", door?.label);
+  check("and locked", door?.locked === true);
+  check("but it takes the key they are carrying", door?.needs !== undefined, door?.needs);
+
+  // A room behind it, or the door is a picture of a door.
+  check("there is a room behind it", after.boxes.length > before.boxes.length,
+    `${before.boxes.length} boxes becomes ${after.boxes.length}`);
+
+  // Nowhere else. Every other floor is being judged.
+  const elsewhere = [5, 4, 3, 2, 1, -1, -2, -3].filter((floor) =>
+    JSON.stringify(buildFloor(generateFloor(floor)))
+      !== JSON.stringify(buildFloor(generateFloor(floor), { returning: true })));
+  check("and no other floor grows one", elsewhere.length === 0,
+    elsewhere.join(", ") || "eight floors unchanged");
+
+  // Empty. Every other locked room holds a page, a telephone and a spare cell,
+  // which are the reasons to open it. This one is the reason.
+  check("and the room behind it is empty",
+    !after.notes.some((n) => n.id === "kept-note")
+      && !after.props.some((p) => p.id === "telephone")
+      && !after.items.some((i) => i.id === "battery"),
+    "the door is the point, not what is in it");
+
+  // Reachable: it is halfway along, so it is passed on the way out as well as
+  // on the way back, and the player cannot miss it by hugging one wall.
+  const spec0 = generateFloor(0);
+  const at = after.doors[0]!.hinge[2];
+  const along = (at - spec0.corridorFrom) / (spec0.corridorTo - spec0.corridorFrom);
+  check("and it is halfway along the corridor", along > 0.3 && along < 0.7,
+    `${Math.round(along * 100)}% of the way back`);
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);

@@ -22,6 +22,7 @@ import {
   requestFloor,
   stepElevator,
 } from "@/game/systems/elevator";
+import { countPress, counted, lit } from "@/game/systems/count";
 import { audio } from "@/game/systems/audio";
 import { ENDING_FLOOR, type Anomaly } from "@/game/systems/anomaly";
 import { useGameStore } from "@/store/useGameStore";
@@ -111,6 +112,18 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
   const offered = useGameStore((state) => state.offered);
 
   /**
+   * The count, once the last page has been read.
+   *
+   * G is not simply handed over like the floors before it. The page says how
+   * the guest's father counted him down, and the panel that has refused every
+   * press since floor zero is what he counted on. Held here rather than in the
+   * store: it is a thing being done at a panel, not a thing about the run, and
+   * walking away and coming back to start again is fair.
+   */
+  const [progress, setProgress] = useState(0);
+  const counting = trapped && offered === G_FLOOR && !counted(progress);
+
+  /**
    * A hotel lift, until it is not.
    *
    * Before the player reaches floor zero this behaves like any other: press a
@@ -119,6 +132,15 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
    * cannot simply press five to leave.
    */
   const press = useCallback((floor: number) => {
+    // Counting down. Every press sounds the same, right or wrong: the buttons
+    // lighting up behind the count is what tells the player they have it, and
+    // a different noise for a mistake would teach them the answer by
+    // elimination without their having read anything.
+    if (counting) {
+      audio.click(SOUND_AT);
+      setProgress((at) => countPress(at, floor));
+      return;
+    }
     if (trapped && floor !== offered) {
       // A dead press still makes the sound of a press. Silence would read as
       // the game having missed the input rather than the lift refusing it.
@@ -127,7 +149,7 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
     }
     audio.click(SOUND_AT);
     requestFloor(elevator.current, floor, ELEVATOR_CONFIG);
-  }, [trapped, offered]);
+  }, [counting, trapped, offered]);
 
   // Reaching the panel means standing in the car, so the player is looking at it.
   const inCar = camera.position.z > ELEVATOR.frontZ;
@@ -181,7 +203,7 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
                 position={at}
                 prompt={trapped ? "The button does not light" : `Floor ${row.floor}`}
                 onPress={() => press(row.floor ?? 0)}
-                lit={!trapped && readout === row.floor}
+                lit={trapped ? lit(progress, row.floor ?? 0) : readout === row.floor}
                 active={!trapped}
               />
             );
@@ -191,6 +213,8 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
           // dead except for this one, so the hotel is the thing choosing where
           // the player goes, and it only ever chooses further down.
           if (row.kind === "offered") {
+            // G is not on the panel until it has been counted to.
+            if (row.floor === G_FLOOR && !counted(progress)) return null;
             return (
               <PanelButton
                 key={row.id}

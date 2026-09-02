@@ -208,5 +208,106 @@ for (const floor of [5, 4, 0]) {
     /spot\.shadow\.autoUpdate = false/.test(torch));
 }
 
+// Boxes sharing a geometry are drawn together. The brief asks for instancing
+// where it is appropriate, and a corridor of repeated walls, trim and treads
+// is exactly where.
+{
+  const { buildFloor } = await import("../game/data/floor");
+  const { generateFloor } = await import("../game/generation/generateFloor");
+  const { readFileSync } = await import("node:fs");
+
+  for (const floor of [5, 0]) {
+    const drawn = buildFloor(generateFloor(floor)).boxes.filter((b) => b.visible !== false);
+    const shapes = new Set(drawn.map((b) => `${b.kind}:${b.size.map((n) => n.toFixed(3)).join()}`));
+    check(`floor ${floor}: batching is worth doing`, shapes.size < drawn.length * 0.75,
+      `${drawn.length} boxes in ${shapes.size} draws`);
+  }
+
+  const geometry = readFileSync("apps/web/components/environment/FloorGeometry.tsx", "utf8");
+  check("and the floor is drawn that way", /<instancedMesh/.test(geometry));
+  // A batch's bounds are not derived from its instance matrices, and both
+  // culling and the shadow pass read them.
+  check("with bounds computed after the instances are placed",
+    /computeBoundingSphere\(\)/.test(geometry));
+  // Every box is in exactly one batch, or some of the floor is not drawn.
+  check("and every visible box is in one",
+    /if \(box\.visible === false\) continue;/.test(geometry));
+}
+
+// Nothing ships that nothing asks for. The starter's five svgs sat in public
+// for the life of the project, served on a domain, referenced by no file in
+// it, and a download budget only catches what is big.
+{
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const dirs = ["apps/web/app", "apps/web/components", "apps/web/game"];
+  const walk = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(`${dir}/${e.name}`) : [`${dir}/${e.name}`]);
+  const source = dirs.flatMap(walk)
+    .filter((f) => f.endsWith(".ts") || f.endsWith(".tsx") || f.endsWith(".css"))
+    .map((f) => readFileSync(f, "utf8"))
+    .join("\n");
+
+  // The models and textures are reached by name at runtime through the loaders
+  // rather than by import, so the whole public tree is checked by filename.
+  const shipped = walk("apps/web/public").filter((f) => !f.endsWith(".DS_Store"));
+  const unused = shipped.filter((f) => {
+    const name = f.split("/").pop()!;
+    // favicon.ico is served by convention rather than by being mentioned.
+    if (name === "favicon.ico") return false;
+    if (source.includes(name)) return false;
+    // A texture is fetched as `${surface}-color.webp`, so the filename never
+    // appears whole. Its surface does. Only inside the asset folders, or a
+    // stray next.svg would pass on the word "next" appearing everywhere.
+    if (/^(textures|models|audio)\//.test(f.replace("apps/web/public/", ""))) {
+      const stem = name.replace(/-(color|normal|orm)\.webp$/, "").replace(/\.[a-z0-9]+$/, "");
+      return !source.includes(stem);
+    }
+    return true;
+  });
+  // The tab icon. The starter ships one, it is the Next.js logo, and it sat
+  // here from the day the project was made until somebody looked at a tab.
+  const { existsSync } = await import("node:fs");
+  check("the game has an icon of its own",
+    existsSync("apps/web/app/icon.svg") && !existsSync("apps/web/app/favicon.ico"),
+    "a seven segment zero, which is the display the whole game turns on");
+
+  check("nothing in public is unreferenced", unused.length === 0,
+    unused.join(", ") || `${shipped.length} files, all asked for`);
+
+  const bytes = shipped.reduce((n, f) => n + statSync(f).size, 0);
+  check("and the shipped assets are the ones budgeted", bytes < 16e6,
+    `${(bytes / 1e6).toFixed(1)}MB`);
+}
+
+// What somebody on a slow connection sees. Eleven megabytes is a long wait on
+// a public site, and a player who clicked straight through would walk a
+// corridor whose furniture arrived a piece at a time.
+{
+  const { readFileSync } = await import("node:fs");
+  const menu = readFileSync("apps/web/components/ui/Overlay.tsx", "utf8");
+  const scene = readFileSync("apps/web/components/game/GameCanvas.tsx", "utf8");
+
+  check("the menu says how far the download has got",
+    /useProgress\(\)/.test(menu) && /Loading \$\{Math\.round\(progress\)\}%/.test(menu));
+  check("and will not let anybody in until it is done",
+    /disabled=\{!interactive \|\| loading\}/.test(menu));
+
+  // Every model behind its own boundary, or one file everybody waits on holds
+  // up a scene most of it is not in.
+  check("the figure does not hold up the scene it is rarely in",
+    /<Suspense fallback=\{null\}>\s*\n\s*<Figure/.test(scene),
+    "useGLTF runs before it knows whether anybody is on this floor");
+
+  // And the thing they are waiting for is the size it is meant to be.
+  const { statSync, readdirSync } = await import("node:fs");
+  const models = readdirSync("apps/web/public/models")
+    .map((f) => [f, statSync(`apps/web/public/models/${f}`).size] as const)
+    .sort((a, b) => b[1] - a[1]);
+  const total = models.reduce((n, [, size]) => n + size, 0);
+  check("and the models are the bulk of it, knowingly", total < 8e6,
+    models.map(([f, size]) => `${f} ${(size / 1e6).toFixed(1)}MB`).join(", "));
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

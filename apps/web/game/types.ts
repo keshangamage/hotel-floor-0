@@ -147,6 +147,21 @@ export interface PropSpec {
 }
 
 /**
+ * A shadow lying on the floor with nothing above it to cast one.
+ *
+ * Not a real shadow: no light in the game produces this. It is a shape laid on
+ * the floor, and the whole of it is that the player can walk up and stand
+ * where the thing casting it would have to be.
+ */
+export interface ShadowSpec {
+  readonly id: string;
+  readonly position: Vec3;
+  readonly yaw: number;
+  readonly width: number;
+  readonly length: number;
+}
+
+/**
  * A mirror on a room wall.
  *
  * The only surface in the game that renders the scene a second time, so there
@@ -261,6 +276,7 @@ export interface FloorLayout {
   readonly notes: readonly NoteSpec[];
   readonly items: readonly ItemSpec[];
   readonly mirrors: readonly MirrorSpec[];
+  readonly shadows: readonly ShadowSpec[];
   /** Where the player's feet start. */
   readonly spawn: Vec3;
   /** Initial camera yaw, in radians. */

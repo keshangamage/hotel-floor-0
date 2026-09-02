@@ -224,8 +224,11 @@ check("every generated floor is standable and walkable", true);
   }
   check("every hotel has exactly one room open, and wakes the player in it",
     sealed.length === 0, sealed.slice(0, 3).join("; ") || "400 hotels");
-  check("and it is not always the same room", several.size >= 6,
-    `${several.size} different rooms across 400 hotels`);
+  // And it is always the same room. The player is a guest in 507, which is the
+  // one room in this hotel meant to be a particular room: a guest whose own
+  // door moved between hotels would have nothing at all to be sure of.
+  check("and it is always 507", several.size === 1 && several.has(507),
+    [...several].join(", "));
 }
 
 // Two hotels should be two buildings, not the same one with different faults.

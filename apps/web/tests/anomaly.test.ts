@@ -221,8 +221,11 @@ check("the reference floor is never anomalous",
     applyAnomaly(generateFloor(REFERENCE_FLOOR),
       { kind: "notice-changed", target: 0, description: "notice" }));
 
-  const before = clean.notes[0];
-  const after = altered.notes[0];
+  // By name, not by position. The locked room's page is also a note, and which
+  // of them comes first depends on where the rooms fall in the corridor.
+  const notice = (l: typeof clean) => l.notes.find((n) => /^room-\d+-notice$/.test(n.id));
+  const before = notice(clean);
+  const after = notice(altered);
   check("both floors have a notice", before !== undefined && after !== undefined);
 
   if (before && after) {
@@ -505,10 +508,14 @@ check("the reference floor is never anomalous",
   const { readFileSync, readdirSync } = await import("node:fs");
   // Anything that draws or plays: a kind may be perceived through the lift's
   // indicator or the audio layer as readily as through the floor plan.
+  // Horror and systems included: a kind can reach the player through who is
+  // standing in a room as readily as through the floor plan. anomaly.ts itself
+  // is left out, or it names every kind and the check proves nothing.
   const consumers = ["apps/web/components/game", "apps/web/components/environment",
-    "apps/web/components/lighting", "apps/web/game/data"]
+    "apps/web/components/lighting", "apps/web/components/horror",
+    "apps/web/game/data", "apps/web/game/systems"]
     .flatMap((dir) => readdirSync(dir).map((f) => `${dir}/${f}`))
-    .filter((f) => f.endsWith(".ts") || f.endsWith(".tsx"))
+    .filter((f) => (f.endsWith(".ts") || f.endsWith(".tsx")) && !f.endsWith("anomaly.ts"))
     .map((f) => readFileSync(f, "utf8"))
     .join("\n");
   const clean = JSON.stringify(buildFloor(generateFloor(REFERENCE_FLOOR)));
@@ -736,6 +743,64 @@ console.log("\nfloors this seed:");
 for (const f of [REFERENCE_FLOOR, ...FLOORS]) {
   const spec = generateFloor(f);
   console.log(`  floor ${f}: ${spec.anomaly ? spec.anomaly.description : "nothing wrong"}`);
+}
+
+// Every kind describes itself, and describes itself alone.
+//
+// The descriptions are a switch, and a switch is one missing `return` away
+// from a kind quietly borrowing its neighbour's answer. That is exactly what
+// happened when the shadow was added: mirror-gone fell through and started
+// reporting itself as the mirror being off the wall, and every suite passed.
+// Read the way the game reads it, off a generated floor.
+{
+  const said = new Map<string, string>();
+  for (let i = 0; i < 600; i += 1) {
+    for (const floor of [4, 3, 2, 1, -1, -2, -3]) {
+      const anomaly = generateFloor(floor, `describe-${i}`).anomaly;
+      if (anomaly) said.set(anomaly.kind, anomaly.description);
+    }
+  }
+
+  const silent = ANOMALY_KINDS.filter((kind) => (said.get(kind) ?? "").length < 8);
+  check("every kind has something to say", silent.length === 0,
+    silent.join(", ") || `${said.size} of ${ANOMALY_KINDS.length} kinds seen`);
+
+  const byText = new Map<string, string[]>();
+  for (const [kind, text] of said) byText.set(text, [...(byText.get(text) ?? []), kind]);
+  const shared = [...byText.entries()].filter(([, kinds]) => kinds.length > 1);
+  check("and none of them borrows another's", shared.length === 0,
+    shared.map(([, kinds]) => kinds.join(" = ")).join("; ") || "no two alike");
+}
+
+// Emergency lighting, the fourth state a fitting can be in after normal,
+// flickering and broken.
+{
+  const { EMERGENCY_COLOR } = await import("../game/data/atmosphere");
+  const normal = buildFloor(generateFloor(REFERENCE_FLOOR));
+  const battery = buildFloor(applyAnomaly(generateFloor(REFERENCE_FLOOR),
+    { kind: "emergency", target: 0, description: "emergency" }));
+
+  // The corridor fittings run down the centreline; a room's lamp does not.
+  const corridor = (l: typeof normal) => l.lamps.filter((lamp) => lamp.position[0] === 0);
+  const before = corridor(normal);
+  const after = corridor(battery);
+
+  check("the corridor is lit either way", before.length === after.length
+    && before.every((lamp) => lamp.lit !== false) && after.every((lamp) => lamp.lit !== false),
+    "so the colour is what gives it away, not a stretch going dark");
+  check("but they are green rather than tungsten",
+    after.every((lamp) => lamp.color === EMERGENCY_COLOR),
+    EMERGENCY_COLOR);
+  check("and dimmer than the mains",
+    Math.max(...after.map((l) => l.intensity)) < Math.max(...before.map((l) => l.intensity)),
+    `${Math.max(...after.map((l) => l.intensity))} against ${Math.max(...before.map((l) => l.intensity))}`);
+
+  // The renderer builds its shaders around how many lights cast, so this must
+  // not change that count or the fault costs a stall as well.
+  const casting = (l: typeof normal) => l.lamps.filter((lamp) => lamp.castShadow).length;
+  check("and no more or fewer lights cast than before",
+    casting(battery) === casting(normal),
+    `${casting(normal)} either way`);
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);

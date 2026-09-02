@@ -60,7 +60,7 @@ export function CeilingLamp({ spec }: { spec: LampSpec }) {
             ref={light}
             target={target}
             position={[0, -0.08, 0]}
-            color={LAMP_COLOR}
+            color={spec.color ?? LAMP_COLOR}
             intensity={lit ? spec.intensity : 0}
             angle={1.25}
             penumbra={0.55}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Hotel Floor 0">
+  <!--
+    The lift's floor indicator, reading zero.
+
+    The one image the whole game turns on: a hotel with five floors, and a
+    button somebody pressed by accident. Drawn as the same seven segment
+    display the car carries, down to the unlit middle bar, which is what makes
+    a zero a zero rather than an eight.
+  -->
+  <rect width="32" height="32" rx="6" fill="#0b0b0d"/>
+  <g fill="#ff8c2a">
+    <rect x="9" y="4" width="14" height="3.6" rx="1"/>
+    <rect x="8" y="5" width="3.6" height="10.5" rx="1"/>
+    <rect x="20.4" y="5" width="3.6" height="10.5" rx="1"/>
+    <rect x="8" y="16.5" width="3.6" height="10.5" rx="1"/>
+    <rect x="20.4" y="16.5" width="3.6" height="10.5" rx="1"/>
+    <rect x="9" y="24.4" width="14" height="3.6" rx="1"/>
+  </g>
+  <!-- The segment that stays dark. A real panel shows you the ones it is not
+       lighting, and that is the difference between a display and a drawing. -->
+  <rect x="9" y="14.2" width="14" height="3.6" rx="1" fill="#ff8c2a" opacity="0.1"/>
+</svg>

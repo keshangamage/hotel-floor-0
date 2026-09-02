@@ -9,6 +9,17 @@ import type { FloorSpec, RoomSpec } from "../types";
 const ROOMS_PER_SIDE = 4;
 
 /**
+ * The room the player is staying in, as an index into the floor's doors.
+ *
+ * The seventh door along, which is 507 on the fifth floor, 407 on the fourth
+ * and 507 again on the floors that are under the building and should not have
+ * numbers at all. Fixed rather than drawn: it is the one room in this hotel
+ * that is meant to be a particular room, and a guest whose own door moved
+ * between hotels would have nothing to be sure of.
+ */
+const GUEST_ROOM = 6;
+
+/**
  * Empty corridor beyond the last room.
  *
  * Drawn from the seed, so one hotel's corridor runs longer than another's.
@@ -157,7 +168,7 @@ export function generateFloor(floorNumber: number, seed: string = DEFAULT_SEED):
   // in them worth walking into. Which room it is comes from the hotel, so a
   // player cannot arrive already knowing where to go.
   // int is inclusive of its upper bound, so this is the last index, not the count.
-  const openIndex = hotel.int(0, rooms.length - 1);
+  const openIndex = GUEST_ROOM;
 
   // A second room, locked, with a key to it somewhere on the floor. Drawn from
   // its own sequence so adding it does not move any draw the hotel already
