@@ -7,6 +7,9 @@ import type { FloorSpec } from "../types";
  * ones the player is judging: a figure is not an anomaly. They are not being
  * asked whether it belongs there, which is why it is allowed to be obvious.
  */
+/** Outer face of the corridor wall, which is where a room begins. */
+const OUTER_FACE = 1.15;
+
 export interface Stand {
   readonly x: number;
   readonly z: number;
@@ -49,6 +52,19 @@ export const STAND_HEIGHT = 1.5;
 export const OPENS_AT = 1;
 
 export function presenceOn(spec: FloorSpec, deepest = Infinity): Stand | null {
+  // Standing in the room, when the mirror on that floor is the fault.
+  //
+  // It is not the reflection that is wrong: it is the room, and the mirror is
+  // the only way to see it. Looking straight at this thing is what makes it
+  // not be there, and looking at a mirror is not looking at it, so what the
+  // player gets is somebody over their shoulder who is not behind them when
+  // they turn. Deep enough into the room that they can see it from the door
+  // before walking into the distance that ends it.
+  if (spec.anomaly?.kind === "mirror-wrong") {
+    const room = spec.rooms.find((r) => r.furnished);
+    if (room) return { x: room.side * (OUTER_FACE + room.depth * 0.78), z: room.doorZ };
+  }
+
   // Ascending z runs from the dead end towards the lift.
   const pools = spec.lamps
     .filter((lamp) => lamp.lit && lamp.z <= spec.corridorTo - LOBBY_CLEARANCE)

@@ -1,10 +1,11 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 
 import { Doors } from "@/components/environment/Doors";
 import { Figure } from "@/components/horror/Figure";
+import { CastShadows } from "@/components/horror/CastShadow";
 import { GoingOut } from "@/components/horror/GoingOut";
 import { Elevator } from "@/components/environment/Elevator";
 import { FloorGeometry } from "@/components/environment/FloorGeometry";
@@ -23,6 +24,7 @@ import { Player } from "@/components/player/Player";
 import { FOG_COLOR, FOG_DENSITY } from "@/game/data/atmosphere";
 import { buildFloor } from "@/game/data/floor";
 import { generateFloor } from "@/game/generation/generateFloor";
+import { G_FLOOR } from "@/game/systems/elevator";
 import { useGameStore } from "@/store/useGameStore";
 
 import { Ambience } from "./Ambience";
@@ -42,7 +44,17 @@ function Scene() {
   const floorNumber = useGameStore((state) => state.floorNumber);
   const seed = useGameStore((state) => state.seed);
   const spec = useMemo(() => generateFloor(floorNumber, seed), [floorNumber, seed]);
-  const layout = useMemo(() => buildFloor(spec), [spec]);
+  // The last page has been read, so the hotel has stopped pretending. Only the
+  // floor it was read on is affected, because riding to G leaves it behind.
+  const offered = useGameStore((state) => state.offered);
+  const remembering = offered === G_FLOOR;
+  // On floor zero, the page at the dead end has been read and the player is
+  // walking back. Nothing else on that floor changes, and no other floor does.
+  const returning = offered !== null;
+  const layout = useMemo(
+    () => buildFloor(spec, { remembering, returning }),
+    [spec, remembering, returning],
+  );
 
   return (
       <ColliderProvider boxes={layout.boxes}>
@@ -62,6 +74,7 @@ function Scene() {
         <Notes notes={layout.notes} />
         <Items items={layout.items} />
         <Mirrors mirrors={layout.mirrors} />
+        <CastShadows shadows={layout.shadows} />
         {/* Doors register their frame callback before the player, so
             colliders are already positioned when movement resolves. */}
         <Doors layout={layout} />
@@ -69,7 +82,12 @@ function Scene() {
         <Elevator anomaly={spec.anomaly} />
         {/* Keyed on the floor: being spent is its only state, and each floor
             under the hotel gets its own. */}
-        <Figure key={floorNumber} spec={spec} />
+        {/* Its own boundary. Figure calls useGLTF before it decides whether
+            there is anybody on this floor, so without one the whole scene
+            waits on a model that most floors never draw. */}
+        <Suspense fallback={null}>
+          <Figure key={floorNumber} spec={spec} />
+        </Suspense>
         {/* Floor zero only, and keyed with it so a new visit is a new walk. */}
         <GoingOut key={`out-${floorNumber}`} spec={spec} layout={layout} />
         <Switches layout={layout} />

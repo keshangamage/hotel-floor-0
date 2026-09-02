@@ -100,8 +100,12 @@ const looking = (dx: number, dz: number): Watcher => {
 // It belongs to the descent and nowhere else. The floors above are the ones the
 // player is judging, and a figure is not something they can be asked about.
 {
+  // Unless the mirror is the fault, in which case somebody standing in the
+  // room is the thing the player is being asked to notice.
   for (const floor of [5, 4, 3, 2, 1, 0]) {
-    check(`floor ${floor} has nobody on it`, presenceOn(generateFloor(floor)) === null);
+    const spec = generateFloor(floor);
+    if (spec.anomaly?.kind === "mirror-wrong") continue;
+    check(`floor ${floor} has nobody on it`, presenceOn(spec) === null);
   }
   check("and neither does G", presenceOn(generateFloor(G_FLOOR)) === null,
     "the ending is the answer, not another scare");
@@ -166,9 +170,45 @@ const looking = (dx: number, dz: number): Watcher => {
 
   // Only the fifth. The floors between are the ones being judged, and a figure
   // on one of them would be a difference the player cannot write down.
-  const between = [4, 3, 2, 1, 0].filter((f) => presenceOn(generateFloor(f), -3) !== null);
+  const between = [4, 3, 2, 1, 0].filter((f) => {
+    const spec = generateFloor(f);
+    return spec.anomaly?.kind !== "mirror-wrong" && presenceOn(spec, -3) !== null;
+  });
   check("and no other floor of the hotel gains one", between.length === 0,
     between.join(", ") || "four floors and the ground");
+}
+
+// The mirror fault: somebody in the room who is not behind the player.
+//
+// The reflection is not what is wrong. The room is, and the mirror is the only
+// way to see it: looking straight at this thing is what makes it not be there,
+// and looking at a mirror is not looking at it.
+{
+  const { applyAnomaly } = await import("../game/systems/anomaly");
+  const wrong = (floor: number) => applyAnomaly(generateFloor(floor),
+    { kind: "mirror-wrong", target: 0, description: "mirror" });
+
+  const spec = wrong(4);
+  const stand = presenceOn(spec);
+  const room = spec.rooms.find((r) => r.furnished)!;
+  check("it stands in the room the mirror is in", stand !== null);
+  if (stand) {
+    check("on the room's own side of the corridor", Math.sign(stand.x) === room.side);
+    check("and level with its door", Math.abs(stand.z - room.doorZ) < 0.01);
+
+    // Far enough in to be seen from the doorway before the player walks into
+    // the distance that ends it.
+    const fromDoor = Math.abs(stand.x) - 1.15;
+    check("far enough in to be seen before it goes", fromDoor > TOO_CLOSE,
+      `${fromDoor.toFixed(1)}m from the door, gone inside ${TOO_CLOSE}m`);
+    check("and still inside the room", fromDoor < room.depth,
+      `${fromDoor.toFixed(1)}m into a ${room.depth}m room`);
+  }
+
+  // Only on the floor whose fault it is.
+  const clean = [4, 3, 2, 1].map((f) => generateFloor(f))
+    .filter((s) => s.anomaly?.kind !== "mirror-wrong" && presenceOn(s) !== null);
+  check("and nowhere the mirror is not the fault", clean.length === 0);
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);

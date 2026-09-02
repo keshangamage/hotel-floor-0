@@ -130,6 +130,36 @@ function place(frame: RoomFrame, roomId: string, item: Placement) {
 /** Bedside table, kept in one place so the lamp sits on top of it. */
 const NIGHTSTAND = { depth: 4.21, across: -0.04 } as const;
 
+/**
+ * The room as it was, once the hotel has stopped pretending.
+ *
+ * The same doorway, the same number on it, and a child's bedroom inside. Half
+ * the furniture is gone because a nine year old does not have a writing desk,
+ * the bed is two thirds the size, and the chair is out in the middle of the
+ * floor facing the door rather than tucked under anything.
+ *
+ * It is the last thing on the last floor, and it only appears once the page
+ * that opens G has been read: until then this floor is still being judged, and
+ * a room that changed under the player would be a difference they can see and
+ * have no way to write down.
+ */
+const MEMORY: readonly Placement[] = [
+  // Pushed into the corner, and small.
+  { id: "bed", depth: 3.6, across: -1.15, yaw: 0, scale: 0.68, blockTo: 0.5 },
+  { id: "nightstand", depth: NIGHTSTAND.depth, across: NIGHTSTAND.across, yaw: -90, scale: 0.8 },
+  // Out on the floor, turned to face the door. Nobody tucked it in.
+  { id: "chair", depth: 1.75, across: 0.35, yaw: 180, scale: 0.8 },
+  { id: "rug", depth: 2.1, across: 0.1, yaw: 0, scale: 0.62, solid: false, y: -0.006 },
+  {
+    id: "chandelier",
+    depth: 2.20,
+    across: 0,
+    scale: 0.5,
+    solid: false,
+    y: CEILING_HEIGHT - PROP_SIZES.chandelier[1] * 0.5,
+  },
+];
+
 const LAYOUT: readonly Placement[] = [
   // Bed along the left wall, head to the exterior wall. This model's long axis
   // is X, so it needs no quarter turn.
@@ -178,12 +208,14 @@ export function furnishHotelRoom(
   roomId: string,
   /** What is wrong with this floor, for the anomalies the room carries. */
   wrong?: AnomalyKind,
+  /** The room as the guest remembers it rather than as the hotel lets it. */
+  remembering = false,
 ): Furnishing {
   const alteredNotice = wrong === "notice-changed";
   const boxes: BoxSpec[] = [];
   const props: PropSpec[] = [];
 
-  for (const item of LAYOUT) {
+  for (const item of remembering ? MEMORY : LAYOUT) {
     // The chair belongs tucked under the desk. Out in the floor, turned to
     // face the door, is the same room saying something different.
     const placed = wrong === "furniture-moved" && item.id === "chair"
@@ -285,7 +317,7 @@ export function furnishHotelRoom(
       // On the desk, where hotel stationery lives.
       position: localPoint(frame, 2.75, PROP_SIZES.desk[1] + 0.005, 1.05),
       yaw: worldYaw(frame, 0),
-      title: "Notice to guests",
+      title: remembering ? "In pencil, low on the wall" : "Notice to guests",
       // The altered one moves breakfast to a floor the hotel does not have,
       // and stops talking about rooms.
       //
@@ -295,7 +327,17 @@ export function furnishHotelRoom(
       // exactly like floor five should read that as the building repeating,
       // not as the game having forgotten to change something, and this is the
       // first printed thing they see.
-      lines: alteredNotice
+      lines: remembering
+        ? [
+            "THIS IS MY ROOM",
+            "",
+            "DO NOT COME IN",
+            "",
+            "and underneath, in a hand that could write:",
+            "",
+            "We are only here for the week.",
+          ]
+        : alteredNotice
         ? [
             "Breakfast is served on the ground floor",
             "from six until half past nine.",

@@ -1,3 +1,4 @@
+import { ENDING_FLOOR, REFERENCE_FLOOR } from "../systems/anomaly";
 import { G_FLOOR } from "../systems/elevator";
 import { boxFromBounds, room, slab, wallWithOpenings, type Opening } from "./builders";
 import {
@@ -13,6 +14,8 @@ import {
   RAIL_HEIGHT,
   RAIL_SECTION,
   RISER_THICKNESS,
+  ROOM_DEPTH,
+  ROOM_WIDTH,
   SLAB_THICKNESS,
   STAIR_DEPTH,
   STAIR_INSET,
@@ -30,12 +33,13 @@ import {
   WINDOW_TOP,
   WINDOW_WIDTH,
 } from "./dimensions";
+import { EMERGENCY_COLOR, EMERGENCY_INTENSITY } from "./atmosphere";
 import { PROP_SIZES } from "./propSizes.generated";
 import { ELEVATOR, buildElevator } from "./elevator";
 import { furnishHotelRoom, type RoomFrame } from "./furniture";
 import { DEFAULT_SEED, generateFloor } from "../generation/generateFloor";
 import type {
-  BoxSpec, DoorSpec, FloorLayout, FloorSpec, ItemSpec, LampSpec, MirrorSpec, PaintingSpec, NoteSpec,
+  BoxSpec, DoorSpec, FloorLayout, FloorSpec, ItemSpec, LampSpec, MirrorSpec, PaintingSpec, NoteSpec, ShadowSpec,
   PropSpec, RoomSpec, SwitchSpec, Vec3,
 } from "../types";
 
@@ -371,8 +375,56 @@ function stairwell(end: number): { opening: Opening; boxes: BoxSpec[] } {
   };
 }
 
-export function buildFloor(spec: FloorSpec): FloorLayout {
+/** What the player has done, where it changes what the floor is. */
+export interface FloorContext {
+  /**
+   * The last page has been read and G is on the panel.
+   *
+   * The only thing outside the plan that changes a floor. It cannot happen
+   * sooner: until that page is read this floor is still being judged, and a
+   * room that rearranged itself under the player would be a difference they
+   * can see and have no way to write down.
+   */
+  readonly remembering?: boolean;
+  /**
+   * The page on floor zero has been read, and the player is walking back.
+   *
+   * Floor zero only. It is the one floor nothing is compared against, so it is
+   * the one floor whose architecture is free to be wrong.
+   */
+  readonly returning?: boolean;
+}
+
+export function buildFloor(spec: FloorSpec, context: FloorContext = {}): FloorLayout {
   const { corridorFrom: from, corridorTo: end } = spec;
+
+  /**
+   * A door on a floor that has none.
+   *
+   * Floor zero is a corridor with no rooms off it, which the player has just
+   * walked the length of. On the way back there is a door in it, and the
+   * number on the door is their own. It opens with their own key.
+   *
+   * This is the only place in the hotel where the architecture is allowed to
+   * be impossible, and it is allowed because this floor is never judged:
+   * nothing here has to match anything, so a room that was not there before
+   * cannot be mistaken for a fault the player is meant to write down. On any
+   * other floor it would be exactly that.
+   */
+  const rooms = context.returning === true && spec.floorNumber === ENDING_FLOOR
+    ? [...spec.rooms, {
+        number: REFERENCE_FLOOR * 100 + 7,
+        side: -1 as const,
+        // Halfway back, so they are as far from the lift as from the page.
+        doorZ: (from + end) / 2,
+        width: ROOM_WIDTH,
+        depth: ROOM_DEPTH,
+        door: "locked" as const,
+        // Their own key opens it. It is their own room number.
+        keyed: true,
+        lit: false,
+      }]
+    : spec.rooms;
   const length: [number, number] = [from, end];
   const full: [number, number] = [-OUTER_X, OUTER_X];
   const stairs = stairwell(end);
@@ -394,7 +446,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
       outerFace: OUTER_X,
       span: length,
       height: CEILING_HEIGHT,
-      openings: spec.rooms.filter((r) => r.side === 1).map(doorway),
+      openings: rooms.filter((r) => r.side === 1).map(doorway),
       trim: true,
     }),
     ...wallWithOpenings({
@@ -403,7 +455,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
       outerFace: -OUTER_X,
       span: length,
       height: CEILING_HEIGHT,
-      openings: [...spec.rooms.filter((r) => r.side === -1).map(doorway), stairs.opening],
+      openings: [...rooms.filter((r) => r.side === -1).map(doorway), stairs.opening],
       trim: true,
     }),
 
@@ -452,9 +504,32 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
   const notes: NoteSpec[] = [];
   const items: ItemSpec[] = [];
   const mirrors: MirrorSpec[] = [];
-  const keyedRoom = spec.rooms.find((r) => r.keyed);
 
-  for (const spec_ of spec.rooms) {
+  /**
+   * A shadow with nothing above it.
+   *
+   * Laid in the furthest lit pool, stretched back down the corridor the way a
+   * standing figure's would be, so the player sees it before they reach it and
+   * can walk up and stand exactly where the thing casting it would have to be.
+   * Nothing is there. That is the entire anomaly, and it needs no trickery:
+   * the shape is simply on the floor.
+   */
+  const shadows: ShadowSpec[] = [];
+  if (spec.anomaly?.kind === "shadow-cast") {
+    const pool = spec.lamps.filter((lamp) => lamp.lit).map((lamp) => lamp.z).sort((a, b) => a - b)[0];
+    if (pool !== undefined) {
+      shadows.push({
+        id: "cast-shadow",
+        position: [0.28, 0.012, pool + 1.15],
+        yaw: 0,
+        width: 0.72,
+        length: 2.3,
+      });
+    }
+  }
+  const keyedRoom = rooms.find((r) => r.keyed);
+
+  for (const spec_ of rooms) {
     const frame: RoomFrame = { side: spec_.side, nearX: OUTER_X, doorZ: spec_.doorZ };
     const hasWindow = spec_.furnished === true;
 
@@ -486,7 +561,10 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
 
     // The locked room holds one page and nothing else: no lamp, no furniture,
     // and no reason to be in there except the thing the key was for.
-    if (spec_.keyed) {
+    // The room behind the impossible door has nothing in it. Every other
+    // locked room is furnished with a page, a telephone and a spare cell,
+    // which are the reasons to open it. This one is the reason.
+    if (spec_.keyed && spec.floorNumber !== ENDING_FLOOR) {
       const middle = roomCentre(spec_);
 
       // A telephone on the floor of an empty room. It is here on every floor,
@@ -555,6 +633,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     const furnishing = furnishHotelRoom(
       frame, spec_.depth, spec_.width, `room-${spec_.number}`,
       spec.anomaly?.kind,
+      context.remembering === true,
     );
     // The key, left on the desk of the room that is open. Named for the door
     // it opens, so carrying it is the whole of being able to open that door.
@@ -606,20 +685,33 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     });
   }
 
+  /**
+   * The corridor on its emergency fittings.
+   *
+   * Cold green and dim, which is what a battery pack with a tube in it looks
+   * like and the one thing the hotel's warm tungsten never does. The colour is
+   * the whole of it: a hotel corridor is fully lit either way, so there is no
+   * dark stretch appearing or disappearing to give it away first.
+   */
+  const onBattery = spec.anomaly?.kind === "emergency";
+
   const lamps: LampSpec[] = spec.lamps.map((lamp) => ({
     id: lamp.id,
+    color: onBattery ? EMERGENCY_COLOR : undefined,
     position: [0, CEILING_HEIGHT, lamp.z],
     // A flickering fixture never casts: rebuilding a shadow map every frame
     // costs more than the whole rest of the corridor's lighting.
+    // Nothing on a battery has the power to cast, and it keeps the number of
+    // shadow-casting lights the same either way.
     castShadow: lamp.castShadow && lamp.lit && !lamp.flicker,
-    intensity: CORRIDOR_LAMP_INTENSITY,
+    intensity: onBattery ? EMERGENCY_INTENSITY : CORRIDOR_LAMP_INTENSITY,
     lit: lamp.lit,
     flicker: lamp.flicker,
   }));
 
   lamps.push(...extraLamps);
 
-  for (const r of spec.rooms) {
+  for (const r of rooms) {
     if (!r.lit || r.furnished) continue;
     const [cx, , cz] = roomCentre(r);
     lamps.push({
@@ -647,7 +739,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
 
   // A furnished room decides its own standing spot; otherwise start in the
   // lobby, which is where the elevator puts you.
-  const start = spec.spawnRoom === null ? undefined : spec.rooms.find((r) => r.number === spec.spawnRoom);
+  const start = spec.spawnRoom === null ? undefined : rooms.find((r) => r.number === spec.spawnRoom);
   const spawn: Vec3 = start
     ? (spawnPoints.get(start.number) ?? roomCentre(start))
     : [0, 0, end - 1.6];
@@ -668,11 +760,11 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     // number, and only the thing screwed to the wall is missing. A door that
     // opens itself is dressing too, and picks a locked one so it is a door
     // that could not have been opened rather than one left ajar.
-    doors: spec.rooms.map(doorFor).map((door, i) => {
-      const chosen = spec.anomaly ? i === spec.anomaly.target % spec.rooms.length : false;
+    doors: rooms.map(doorFor).map((door, i) => {
+      const chosen = spec.anomaly ? i === spec.anomaly.target % rooms.length : false;
       if (spec.anomaly?.kind === "sign-gone" && chosen) return { ...door, label: undefined };
       if (spec.anomaly?.kind === "door-opens") {
-        const shut = spec.rooms.map((r, j) => (r.door === "locked" ? j : -1)).filter((j) => j >= 0);
+        const shut = rooms.map((r, j) => (r.door === "locked" ? j : -1)).filter((j) => j >= 0);
         const at = shut[spec.anomaly.target % Math.max(1, shut.length)];
         if (i === at) return { ...door, opensUnwatched: true };
       }
@@ -684,6 +776,7 @@ export function buildFloor(spec: FloorSpec): FloorLayout {
     notes: [...notes, ...endingNote(spec)],
     items,
     mirrors,
+    shadows,
     spawn,
     spawnYaw: start ? (start.side === 1 ? Math.PI / 2 : -Math.PI / 2) : Math.PI,
   };

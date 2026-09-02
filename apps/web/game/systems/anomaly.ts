@@ -40,7 +40,10 @@ export type AnomalyKind =
   | "telephone"
   | "key-gone"
   | "phone-gone"
-  | "mirror-gone";
+  | "mirror-gone"
+  | "shadow-cast"
+  | "mirror-wrong"
+  | "emergency";
 
 export interface Anomaly {
   readonly kind: AnomalyKind;
@@ -92,6 +95,8 @@ const SUBTLETY: Record<AnomalyKind, 1 | 2 | 3> = {
   "telephone": 2,
   "key-gone": 2,
   "mirror-gone": 2,
+  "shadow-cast": 1,
+  "emergency": 1,
   // Needs the player to already know the hotel.
   "following": 3,
   "chair-creeps": 3,
@@ -99,6 +104,7 @@ const SUBTLETY: Record<AnomalyKind, 1 | 2 | 3> = {
   "notice-changed": 3,
   "silence": 3,
   "phone-gone": 3,
+  "mirror-wrong": 3,
 };
 
 /** The hardest kind a floor may use, by how far down it is. */
@@ -133,6 +139,9 @@ export const ANOMALY_KINDS: readonly AnomalyKind[] = [
   "key-gone",
   "phone-gone",
   "mirror-gone",
+  "shadow-cast",
+  "mirror-wrong",
+  "emergency",
   "chair-creeps",
   "door-opens",
   "painting-turns",
@@ -171,6 +180,12 @@ export const CARRIED: ReadonlySet<AnomalyKind> = new Set<AnomalyKind>([
   "key-gone",
   "phone-gone",
   "mirror-gone",
+  // A shape on the floor, which the plan has no opinion about.
+  "shadow-cast",
+  // Someone standing in the room, which the plan does not describe either.
+  "mirror-wrong",
+  // The fittings the corridor falls back on, which are not in the plan.
+  "emergency",
 ]);
 
 export const isCarried = (kind: AnomalyKind): boolean => CARRIED.has(kind);
@@ -218,6 +233,9 @@ function describe(kind: AnomalyKind): string {
     case "key-gone": return "the key is not on the desk it is left on";
     case "phone-gone": return "the telephone is gone from the locked room";
     case "mirror-gone": return "the mirror is off the wall of the room";
+    case "shadow-cast": return "a shadow lies in the corridor with nothing casting it";
+    case "mirror-wrong": return "the mirror has somebody in it who is not in the room";
+    case "emergency": return "the corridor is on its emergency lighting";
     case "chair-creeps": return "the chair is not where it was left";
     case "door-opens": return "a locked door has come open behind you";
     case "painting-turns": return "a picture is not the one that was hanging there";
@@ -307,6 +325,9 @@ export function applyAnomaly(spec: FloorSpec, anomaly: Anomaly | null): FloorSpe
     case "key-gone":
     case "phone-gone":
     case "mirror-gone":
+    case "shadow-cast":
+    case "mirror-wrong":
+    case "emergency":
     case "chair-creeps":
     case "door-opens":
     case "painting-turns":
