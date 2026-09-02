@@ -201,10 +201,14 @@ export function Elevator({ anomaly }: { anomaly: Anomaly | null }) {
               <PanelButton
                 key={row.id}
                 position={at}
-                prompt={trapped ? "The button does not light" : `Floor ${row.floor}`}
+                // While the count is live these are live buttons, and saying
+                // they do not light is both untrue and the reason nobody
+                // presses them. They read as floors again, which is all the
+                // invitation the page needs: it already says what order.
+                prompt={!trapped || counting ? `Floor ${row.floor}` : "The button does not light"}
                 onPress={() => press(row.floor ?? 0)}
                 lit={trapped ? lit(progress, row.floor ?? 0) : readout === row.floor}
-                active={!trapped}
+                active={!trapped || counting}
               />
             );
           }

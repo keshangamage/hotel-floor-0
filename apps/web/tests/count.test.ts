@@ -72,6 +72,14 @@ const enter = (...floors: number[]) => floors.reduce(countPress, 0);
   check("the numbered buttons light behind the count",
     /lit\(progress, row\.floor \?\? 0\)/.test(lift),
     "the only feedback the puzzle has");
+  // The buttons have to stop calling themselves dead once they are not. A
+  // panel that says "the button does not light" is a panel nobody presses, and
+  // that is exactly where a player gets stuck on the last floor.
+  check("and the buttons read as floors again while it is live",
+    /!trapped \|\| counting \? `Floor \$\{row\.floor\}` : "The button does not light"/.test(lift),
+    "they were still telling the player they were dead");
+  check("and look pressable", /active=\{!trapped \|\| counting\}/.test(lift));
+
   check("and a wrong press sounds exactly like a right one",
     /audio\.click\(SOUND_AT\);\s*\n\s*setProgress/.test(lift),
     "a different noise for a mistake teaches the answer by elimination");

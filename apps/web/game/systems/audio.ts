@@ -39,6 +39,12 @@ export interface ToneVoice {
   depth(level: number): void;
 }
 
+/** A voice that is taken away over as long as whatever owned it needs. */
+export interface FadingVoice {
+  /** Fades out over `seconds` and does not come back. */
+  stop(seconds?: number): void;
+}
+
 export interface StepSprite {
   readonly offset: number;
   readonly duration: number;
@@ -706,6 +712,80 @@ export class AudioEngine {
 
       at += length + 0.03 + Math.random() * 0.1;
     }
+  }
+
+  /**
+   * Something breathing, from where it is standing.
+   *
+   * The figure in the corridor does not speak and does not move, so this is
+   * the only warning the player gets that they are not on the floor alone, and
+   * it has to be deniable: noise in the band a mouth shapes, and nothing else.
+   *
+   * The swell is one slow oscillator into the gain. It crosses zero, and noise
+   * does not care which side of zero it is on, so a single cycle is heard as
+   * two breaths, in and then out, with the dip between them. The same
+   * oscillator opens the filter on the way in and closes it on the way out,
+   * which is what makes the two halves different rather than a pulse repeated.
+   */
+  breath(position: readonly [number, number, number]): FadingVoice | null {
+    const context = this.ensure();
+    const out = this.route(position);
+    if (!context || !out || !this.white) return null;
+    const now = context.currentTime;
+
+    // Cycles per second, so a breath in and out every four and a half.
+    const RATE = 0.22;
+
+    const source = context.createBufferSource();
+    source.buffer = this.white;
+    source.loop = true;
+
+    // Wider and flatter than the whisper's, because this is breath and not
+    // voice: resonant enough and it starts to sound like a vowel.
+    const throat = context.createBiquadFilter();
+    throat.type = "bandpass";
+    throat.frequency.value = 480;
+    throat.Q.value = 1.4;
+    const mouth = context.createBiquadFilter();
+    mouth.type = "bandpass";
+    mouth.frequency.value = 1200;
+    mouth.Q.value = 0.9;
+
+    const swell = context.createGain();
+    swell.gain.value = 0;
+
+    const lung = context.createOscillator();
+    lung.frequency.value = RATE;
+    const depth = context.createGain();
+    depth.gain.value = 0.04;
+    lung.connect(depth).connect(swell.gain);
+    const colour = context.createGain();
+    colour.gain.value = 300;
+    lung.connect(colour).connect(mouth.frequency);
+
+    // Faded up rather than switched on, so it is something the player walks
+    // into earshot of rather than something that starts.
+    const level = context.createGain();
+    level.gain.value = 0;
+    level.gain.linearRampToValueAtTime(1, now + 1.5);
+
+    source.connect(throat).connect(mouth).connect(swell).connect(level).connect(out);
+    source.start(now, Math.random() * (NOISE_SECONDS - 0.2));
+    lung.start(now);
+
+    const voice: FadingVoice = {
+      stop: (seconds = 0.4) => {
+        const t = context.currentTime;
+        level.gain.cancelScheduledValues(t);
+        level.gain.setValueAtTime(level.gain.value, t);
+        level.gain.linearRampToValueAtTime(0, t + seconds);
+        source.stop(t + seconds + 0.05);
+        lung.stop(t + seconds + 0.05);
+        this.voices.delete(voice);
+      },
+    };
+    this.voices.add(voice);
+    return voice;
   }
 
   /**

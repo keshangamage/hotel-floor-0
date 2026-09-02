@@ -18,8 +18,10 @@ import { join } from "node:path";
 
 const SOURCE = "footstep.mp3";
 const DOOR_SOURCE = "door.mp3";
+const GHOST_SOURCE = "dragon-studio-ghost-horror-sound-382709.mp3";
 const OUT_AUDIO = "apps/web/public/audio/footsteps.wav";
 const OUT_DOOR = "apps/web/public/audio/door.wav";
+const OUT_GHOST = "apps/web/public/audio/ghost.wav";
 const OUT_TABLE = "apps/web/game/data/footsteps.generated.ts";
 
 const RATE = 24000;
@@ -204,10 +206,29 @@ for (let start = 0; start + doorLength <= door.length; start += stride) {
 writeFileSync(OUT_DOOR, wav(shape(door, best, doorLength)));
 console.log(`door: ${(door.length / RATE).toFixed(2)}s in, kept ${DOOR_SECONDS}s from ${(best / RATE).toFixed(2)}s`);
 
+// The figure, which is one long moan with silence either side of it. Nothing
+// to find here: keep the whole of it, minus the lead in and the tail of room
+// noise the recording ends on, which would otherwise be 0.4s of nothing that
+// still has to be downloaded and decoded.
+const ghost = decode(GHOST_SOURCE);
+let loudest = 0;
+for (const v of ghost) loudest = Math.max(loudest, Math.abs(v));
+const audible = (limit) => {
+  let first = 0;
+  let last = ghost.length - 1;
+  while (first < ghost.length && Math.abs(ghost[first]) < limit) first += 1;
+  while (last > first && Math.abs(ghost[last]) < limit) last -= 1;
+  return [first, last];
+};
+const [from, to] = audible(loudest * 0.01);
+writeFileSync(OUT_GHOST, wav(shape(ghost, from, to - from)));
+console.log(`ghost: ${(ghost.length / RATE).toFixed(2)}s in, kept ${((to - from) / RATE).toFixed(2)}s from ${(from / RATE).toFixed(2)}s`);
+
 console.log(`\nkept ${steps.length} steps, taken from across the recording:`);
 for (const [i, c] of chosen.entries()) {
   console.log(`  ${i}  at ${c.at.toFixed(2)}s  peak ${c.loudest.toFixed(3)}  attack ${c.clean.toFixed(1)}x`);
 }
 console.log(`\nwrote ${OUT_AUDIO}  ${(total / RATE).toFixed(2)}s  ${((44 + pcm.length) / 1024).toFixed(0)} KB`);
 console.log(`wrote ${OUT_DOOR}`);
+console.log(`wrote ${OUT_GHOST}`);
 console.log(`wrote ${OUT_TABLE}`);

@@ -211,5 +211,73 @@ const looking = (dx: number, dz: number): Watcher => {
   check("and nowhere the mirror is not the fault", clean.length === 0);
 }
 
+// The one sound it makes.
+//
+// It does not speak and it does not move, so breathing is the whole of the
+// warning that the floor is not empty. It has to come from where the thing is
+// standing, and it has to leave when it does: a corridor that is empty and
+// still breathing is the game confirming what the player thinks they saw.
+{
+  const { readFileSync } = await import("node:fs");
+  const figure = readFileSync("apps/web/components/horror/Figure.tsx", "utf8");
+  const engine = readFileSync("apps/web/game/systems/audio.ts", "utf8");
+
+  check("it breathes from where it is standing",
+    /audio\.breath\(\[stand\.x, STAND_HEIGHT, stand\.z\]\)/.test(figure),
+    "in the mix instead, it would be no use in telling the player where not to look");
+  check("and stops on the frame it is seen",
+    /state\.going = true;(\s*\/\/[^\n]*\n)*\s*breath\.current\?\.stop\(FADE\)/.test(figure),
+    "over the same fade as the shape, or the sound outlives it");
+  check("and does not come back on the floor it has left",
+    /if \(seen\.current\.going \|\| seen\.current\.gone\) return;/.test(figure),
+    "the effect runs again on every unpause");
+  check("and a paused hotel is not breathing either",
+    /phase !== "playing"\) return;/.test(figure) && /breath\.current\?\.stop\(\);/.test(figure));
+
+  check("the breath is placed in the world like the rest of the sound",
+    /breath\(position: readonly \[number, number, number\]\)/.test(engine),
+    "an unplaced voice is inside the player's head, which is the wrong room");
+  check("and is quieter than the whispering it must not be taken for",
+    /depth\.gain\.value = 0\.04;/.test(engine) && /exponentialRampToValueAtTime\(0\.022,/.test(engine));
+}
+
+// The recording, on the floors under the hotel.
+//
+// The one place the game says out loud that something is there, which is why
+// it is kept to the descent: above ground the player is still judging what
+// they see and writing it down, and a sound effect would answer it for them.
+{
+  const { readFileSync, statSync } = await import("node:fs");
+  const figure = readFileSync("apps/web/components/horror/Figure.tsx", "utf8");
+  const loader = readFileSync("apps/web/components/game/Audio.tsx", "utf8");
+
+  check("it moans on the three floors under the hotel",
+    /const HAUNTED = new Set\(\[-1, -2, -3\]\)/.test(figure),
+    "and on none of the ones being judged");
+  check("from where it is standing",
+    /audio\.playAt\("ghost", \[stand\.x, STAND_HEIGHT, stand\.z\]/.test(figure));
+  check("and only while the player can see it",
+    /state\.watched = isWatched\(watcher, target, state\.watched\)/.test(figure)
+    && /state\.watched && state\.sinceMoan >= MOAN_EVERY/.test(figure),
+    "the same cone the rest of the game counts as watched");
+  check("the first sighting gets one straight away",
+    /watched: false, sinceMoan: MOAN_EVERY,/.test(figure),
+    "or the timer swallows the only look the player gets");
+  check("and the clip is downloaded before the lift arrives",
+    /loadClip\("ghost", "\/audio\/ghost\.wav"\)/.test(loader),
+    "one still downloading plays as silence");
+
+  // The file itself, which the build tool cuts from the mp3 at the root.
+  const wav = readFileSync("apps/web/public/audio/ghost.wav");
+  check("the recording ships as a wav", wav.toString("ascii", 0, 4) === "RIFF");
+  const channels = wav.readUInt16LE(22);
+  const rate = wav.readUInt32LE(24);
+  const seconds = (statSync("apps/web/public/audio/ghost.wav").size - 44) / (rate * 2);
+  check("mono, or the panner has nothing to place", channels === 1);
+  check("at the rate the rest of the audio is cut to", rate === 24000, `${rate} Hz`);
+  check("with the silence trimmed off both ends", seconds < 2,
+    `${seconds.toFixed(2)}s of a 2.12s recording`);
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

@@ -116,6 +116,11 @@ export function Audio() {
         .catch((error: unknown) => console.warn("footstep samples unavailable", error));
       void audio.loadClip("door", "/audio/door.wav")
         .catch((error: unknown) => console.warn("door sample unavailable", error));
+      // Fetched up here rather than on the floor it belongs to. It is wanted
+      // the frame the lift doors open on the first floor under the hotel, and
+      // a clip that is still downloading plays as nothing at all.
+      void audio.loadClip("ghost", "/audio/ghost.wav")
+        .catch((error: unknown) => console.warn("ghost sample unavailable", error));
     });
 
     return () => {
