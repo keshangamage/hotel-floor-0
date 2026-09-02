@@ -1,4 +1,5 @@
-import type { AABB, DoorSpec } from "../types";
+import { PLAYER_RADIUS } from "../data/dimensions";
+import type { AABB, DoorSpec, Point3 } from "../types";
 
 /** Smoothstep, so a door does not start and stop abruptly. */
 export function doorYaw(spec: DoorSpec, progress: number): number {
@@ -36,4 +37,34 @@ export function doorFootprint(spec: DoorSpec, yaw: number, out: AABB): AABB {
   out.minY = hy;
   out.maxY = hy + spec.height;
   return out;
+}
+
+/**
+ * Whether a panel at these bounds would be standing where the player is.
+ *
+ * A door carries its collider with it, and a collider that closes around
+ * somebody is one the movement code has no honest answer for. The door asks
+ * this before it moves and holds where it is if the answer is yes, which is
+ * what a door does when it meets a person.
+ *
+ * The margin covers a frame of staleness: doors run their frame callback
+ * before the player's, so the position this reads is where they were, not
+ * where they are.
+ */
+export function wouldHit(
+  panel: AABB,
+  at: Point3,
+  height: number,
+  margin = 0.06,
+  radius = PLAYER_RADIUS,
+): boolean {
+  const reach = radius + margin;
+  return (
+    panel.minX < at.x + reach &&
+    panel.maxX > at.x - reach &&
+    panel.minY < at.y + height &&
+    panel.maxY > at.y &&
+    panel.minZ < at.z + reach &&
+    panel.maxZ > at.z - reach
+  );
 }

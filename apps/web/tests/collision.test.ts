@@ -2,7 +2,7 @@ import { PLAYER_HEIGHT, PLAYER_RADIUS, CROUCH_HEIGHT } from "../game/data/dimens
 import {
   collidersFrom, isClear, isGrounded, moveAndCollide, STEP_HEIGHT,
 } from "../game/systems/collision";
-import type { BoxSpec, Point3 } from "../game/types";
+import type { AABB, BoxSpec, Point3 } from "../game/types";
 
 let fail = 0;
 const check = (name: string, ok: boolean, detail = "") => {
@@ -147,6 +147,92 @@ const FLOOR = box([0, -0.1, 0], [80, 0.2, 80]);
   }
   check("a box cannot be entered from any direction", worst < 0.01,
     `deepest ${(worst * 1000).toFixed(1)}mm into the box`);
+}
+
+// A door is a collider that moves, and the player can be standing where it is
+// going. This is the one that put somebody on the roof of a door: the swing
+// closed around them, the next frame of gravity read that overlap as a landing,
+// and the first step afterwards walked them out through the side of the hotel.
+{
+  const { generateFloor } = await import("../game/generation/generateFloor");
+  const { buildFloor } = await import("../game/data/floor");
+  const { doorFootprint, doorYaw, wouldHit } = await import("../game/systems/doors");
+
+  const layout = buildFloor(generateFloor(4));
+  const door = layout.doors[0]!;
+  const leaf: AABB = { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
+  const colliders = [...collidersFrom(layout.boxes), leaf];
+  const swing = (progress: number) => doorFootprint(door, doorYaw(door, progress), leaf);
+
+  // Standing in the middle of where the open leaf is going to be.
+  const open = { ...swing(1) };
+  const middle = (): Point3 =>
+    at((open.minX + open.maxX) / 2, 0, (open.minZ + open.maxZ) / 2);
+
+  // The swing, run the way the door's own frame loop runs it.
+  {
+    const p = middle();
+    let progress = 0;
+    let highest = 0;
+    for (let i = 0; i < 120; i += 1) {
+      const next = Math.min(1, progress + 1 / 60 / 0.9);
+      if (!wouldHit(swing(next), p, PLAYER_HEIGHT)) progress = next;
+      swing(progress);
+      step(p, 0, 0, colliders);
+      highest = Math.max(highest, p.y);
+    }
+    check("a door stops against the player instead of opening through them",
+      progress < 0.5, `swung ${Math.round(progress * 100)}% of the way`);
+    check("and leaves them standing where they were",
+      highest < 0.01, `reached y=${highest.toFixed(2)}`);
+
+    // And picks it up again once they are out of the way, or a door somebody
+    // stood in front of once would never open again.
+    p.z += 2.5;
+    for (let i = 0; i < 120; i += 1) {
+      const next = Math.min(1, progress + 1 / 60 / 0.9);
+      if (!wouldHit(swing(next), p, PLAYER_HEIGHT)) progress = next;
+      swing(progress);
+    }
+    check("and finishes the swing when they step out of it", progress === 1);
+  }
+
+  // The lift's panels are driven by the car and cannot wait for anybody, so
+  // the floor has to survive a collider closing around the player anyway.
+  {
+    const p = middle();
+    let highest = 0;
+    for (let i = 0; i < 120; i += 1) {
+      swing(Math.min(1, i / 54));
+      step(p, 0, 0, colliders);
+      highest = Math.max(highest, p.y);
+    }
+    check("a collider that closes around the player does not lift them onto it",
+      highest < 0.01, `reached y=${highest.toFixed(2)}, the leaf is ${door.height}m tall`);
+
+    // Walked out of, not thrown out of. The room is 4.5m deep and the corridor
+    // wall is a metre away: anything further than that is through the building.
+    const from = { ...p };
+    for (let i = 0; i < 60; i += 1) step(p, 0.03, 0.03, colliders);
+    const shoved = Math.hypot(p.x - from.x, p.z - from.z);
+    check("and walking out of one is a step, not a launch", shoved < 2.5,
+      `moved ${shoved.toFixed(2)}m in a second`);
+    check("and they are still on the floor", Math.abs(p.y) < 0.01, `y=${p.y.toFixed(2)}`);
+  }
+
+  // The door is the thing that has to ask. The systems are pure; this is the
+  // one line that wires them together.
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("apps/web/components/environment/HingedDoor.tsx", "utf8");
+  check("the door asks before it swings",
+    /if \(!wouldHit\(doorFootprint\(spec, doorYaw\(spec, next\), swept\), motion, motion\.height\)\) \{\s*\n\s*progress\.current = next;/
+      .test(source),
+    "and holds where it is when the answer is yes");
+  check("and what is drawn is what is solid, on the frames it cannot move",
+    /const yaw = doorYaw\(spec, progress\.current\);[\s\S]{0,160}doorFootprint\(spec, yaw, collider\);/.test(source),
+    "a held door with a stale collider is a leaf you can walk through");
+  check("and the player says where they are",
+    /motion\.x = p\.x;/.test(readFileSync("apps/web/components/player/Player.tsx", "utf8")));
 }
 
 // Rotation is for art only. Everything in this file resolves against axis

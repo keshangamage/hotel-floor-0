@@ -132,8 +132,18 @@ export const useGameStore = create<GameState>()(
       sensitivity: 1,
       setVolume: (volume) => set({ volume }),
       setSensitivity: (sensitivity) => set({ sensitivity }),
+      /**
+       * Any change of phase puts down whatever was being read.
+       *
+       * Escape is the browser leaving pointer lock rather than a key the game
+       * is ever told about, so pausing with a page held used to leave it held:
+       * it is drawn over the pause menu, and the key that puts it down is only
+       * read while playing. There was no way out of that but a reload.
+       */
       setPhase: (phase) =>
-        set(phase === "paused" ? { phase, pausedAt: Date.now() } : { phase }),
+        set(phase === "paused"
+          ? { phase, pausedAt: Date.now(), reading: null }
+          : { phase, reading: null }),
       setInteractPrompt: (interactPrompt) => set({ interactPrompt }),
       // Arriving is what counts as walking a floor, so the tally at the end
       // can tell a floor missed from one never reached.
@@ -176,7 +186,9 @@ export const useGameStore = create<GameState>()(
       offer: (floor) => set((state) => (state.offered !== null && floor >= state.offered
         ? {}
         : { offered: floor })),
-      finish: () => set({ phase: "ending" }),
+      // The same, for the one phase that is not set through setPhase: the lift
+      // can arrive at G while the notebook is open.
+      finish: () => set({ phase: "ending", reading: null }),
       // A new hotel, not the same one again: the run that just ended is the
       // only one that building gets.
       restart: () => set((state) => ({

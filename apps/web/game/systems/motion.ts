@@ -1,3 +1,4 @@
+import { PLAYER_HEIGHT } from "../data/dimensions";
 import type { Gait } from "./footsteps";
 
 /**
@@ -14,4 +15,10 @@ export const motion = {
   speed: 0,
   gait: "walk" as Gait,
   grounded: true,
+  /** Where the feet are, for anything that must not move into them. */
+  x: 0,
+  y: 0,
+  z: 0,
+  /** How tall they are standing right now, since they may be crouched. */
+  height: PLAYER_HEIGHT,
 };

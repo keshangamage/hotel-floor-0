@@ -108,6 +108,10 @@ export function Player({ layout }: { layout: FloorLayout }) {
     motion.speed = speed;
     motion.grounded = hit.grounded;
     motion.gait = crouched ? "crouch" : intent.sprint ? "sprint" : "walk";
+    motion.x = p.x;
+    motion.y = p.y;
+    motion.z = p.z;
+    motion.height = height;
 
     const targetEye = crouched ? CROUCH_EYE_HEIGHT : EYE_HEIGHT;
     eyeHeight.current += (targetEye - eyeHeight.current) * Math.min(1, CROUCH_LERP * dt);

@@ -426,5 +426,35 @@ const reset = () => useGameStore.setState({ trapped: false, offered: null, floor
     `${Math.round(along * 100)}% of the way back`);
 }
 
+// A page is held while the game is being played and at no other time.
+//
+// Escape is the browser leaving pointer lock rather than a key the game is
+// told about, so pausing mid-page used to leave the page up: it is drawn over
+// the pause menu, and the key that puts it down is only read while playing.
+// The player could neither read the menu nor close the page, and the only way
+// out was a reload.
+{
+  const { buildFloor } = await import("../game/data/floor");
+  const { generateFloor } = await import("../game/generation/generateFloor");
+  const page = buildFloor(generateFloor(4)).notes[0]!;
+
+  useGameStore.setState({ phase: "playing", reading: page });
+  store().setPhase("paused");
+  check("pausing puts down whatever was being read", store().reading === null,
+    "it covered the menu that was the only way back");
+
+  useGameStore.setState({ phase: "playing", reading: page });
+  store().finish();
+  check("and so does the ending", store().reading === null,
+    "the lift can arrive at G while the notebook is open");
+
+  // The other way down, which is the one the note itself advertises.
+  const { readFileSync } = await import("node:fs");
+  const actions = readFileSync("apps/web/components/player/InputActions.tsx", "utf8");
+  check("and E still puts it down without leaving the corridor",
+    /if \(reading\) \{\s*\n\s*if \(input\.consumePress\("interact"\)\) readNote\(null\);/.test(actions));
+  useGameStore.setState({ phase: "playing", reading: null });
+}
+
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);
 process.exit(fail === 0 ? 0 : 1);

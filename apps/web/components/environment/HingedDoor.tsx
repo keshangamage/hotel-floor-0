@@ -7,14 +7,19 @@ import * as THREE from "three";
 import { useDynamicCollider } from "@/components/game/Colliders";
 import { Interactable } from "@/components/interaction/Interactable";
 import { audio } from "@/game/systems/audio";
-import { doorFootprint, doorYaw } from "@/game/systems/doors";
-import type { DoorSpec } from "@/game/types";
+import { doorFootprint, doorYaw, wouldHit } from "@/game/systems/doors";
+import { motion } from "@/game/systems/motion";
+import type { AABB, DoorSpec } from "@/game/types";
 import { useGameStore } from "@/store/useGameStore";
 
 import { FIXTURE_MATERIAL, MATERIALS, UNIT_BOX } from "./resources";
 
 /** Seconds for a full swing. */
 const SWING_TIME = 0.9;
+
+// Where the swing is about to be, tested before it goes there. Shared by every
+// door: it is written and read inside one frame callback and never outlives it.
+const swept: AABB = { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
 
 export function HingedDoor({ spec }: { spec: DoorSpec }) {
   const pivot = useRef<THREE.Group>(null);
@@ -88,9 +93,21 @@ export function HingedDoor({ spec }: { spec: DoorSpec }) {
 
     const target = open ? 1 : 0;
     const step = Math.min(delta, 0.05) / SWING_TIME;
-    if (progress.current < target) progress.current = Math.min(target, progress.current + step);
-    else if (progress.current > target) progress.current = Math.max(target, progress.current - step);
+    let next = progress.current;
+    if (next < target) next = Math.min(target, next + step);
+    else if (next > target) next = Math.max(target, next - step);
 
+    // A door meeting a person stops against them. It carries its collider with
+    // it, and one that closes around somebody puts them on top of it and then
+    // walks them out through the side of the building. The swing is held
+    // rather than refused, so it carries on by itself the moment they step
+    // out of the way.
+    if (!wouldHit(doorFootprint(spec, doorYaw(spec, next), swept), motion, motion.height)) {
+      progress.current = next;
+    }
+
+    // Written every frame either way, so what is drawn and what is solid are
+    // the same door even on the frames it is not allowed to move.
     const yaw = doorYaw(spec, progress.current);
     if (pivot.current) pivot.current.rotation.y = yaw;
     doorFootprint(spec, yaw, collider);

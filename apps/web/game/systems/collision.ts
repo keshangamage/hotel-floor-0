@@ -114,15 +114,35 @@ function resolveZ(p: Point3, dir: number, h: number, r: number, cs: readonly AAB
   return blocked;
 }
 
-/** Returns true when the player landed on something. */
-function resolveY(p: Point3, dir: number, h: number, r: number, cs: readonly AABB[]): boolean {
+/**
+ * Returns true when the player landed on something.
+ *
+ * `fromY` is where the feet were before this step, and it is the whole of the
+ * difference between landing on a box and standing inside one. Colliders in
+ * this game move: a door swings, a lift panel closes, and either can arrive
+ * around a player who is not moving at all. Without this, the next frame of
+ * gravity reads that overlap as a landing and puts them on the roof of it,
+ * from where the first step walks them out through the wall of the building.
+ */
+function resolveY(
+  p: Point3,
+  dir: number,
+  h: number,
+  r: number,
+  cs: readonly AABB[],
+  fromY: number,
+): boolean {
   let landed = false;
   setProbe(p, h, r);
   for (const c of cs) {
     if (!intersects(probe, c)) continue;
     if (dir > 0) {
+      // Only a ceiling the head was under.
+      if (fromY + h > c.minY + SKIN) continue;
       p.y = c.minY - h - SKIN;
     } else {
+      // Only a surface the feet were above.
+      if (fromY < c.maxY - SKIN) continue;
       p.y = c.maxY + SKIN;
       landed = true;
     }
@@ -183,9 +203,10 @@ export function moveAndCollide(
           Math.abs(p.z - fromZ) > Math.abs(flatZ - fromZ) + SKIN;
 
         if (gained) {
-          // Settle back onto the ledge.
+          // Settle back onto the ledge, which the step up is above by
+          // definition: that is what made it a ledge and not a wall.
           p.y -= STEP_HEIGHT;
-          resolveY(p, -1, height, radius, colliders);
+          resolveY(p, -1, height, radius, colliders, p.y + STEP_HEIGHT);
           bx = bx2;
           bz = bz2;
         } else {
@@ -204,7 +225,7 @@ export function moveAndCollide(
     blockedZ = blockedZ || bz;
 
     p.y += sy;
-    if (resolveY(p, sy, height, radius, colliders)) grounded = true;
+    if (resolveY(p, sy, height, radius, colliders, p.y - sy)) grounded = true;
     else if (sy !== 0) grounded = isGrounded(p, colliders, radius);
   }
 
