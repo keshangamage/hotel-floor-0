@@ -48,28 +48,34 @@ export function CeilingLamp({ spec }: { spec: LampSpec }) {
         scale={[0.38, 0.02, 0.38]}
       />
 
-      {lit && (
-        <>
+      {/* Always mounted, and dark by being dim.
+       *
+       * Adding or removing a light changes the light count the renderer builds
+       * its shaders around, and every material in the scene is recompiled to
+       * match. That is a stall of hundreds of milliseconds, and it used to
+       * happen on every switch thrown and every lamp floor zero puts out. */}
+      <>
           <primitive object={target} position={[0, -1, 0]} />
           <spotLight
             ref={light}
             target={target}
             position={[0, -0.08, 0]}
             color={LAMP_COLOR}
-            intensity={spec.intensity}
+            intensity={lit ? spec.intensity : 0}
             angle={1.25}
             penumbra={0.55}
             decay={2}
             distance={11}
             castShadow={spec.castShadow}
-            shadow-mapSize={[2048, 2048]}
+            // A shadow map is the scene drawn again from the lamp, every frame.
+        // Three lights cast here, so this number is a cost paid three times.
+        shadow-mapSize={[1024, 1024]}
             shadow-camera-near={0.3}
             shadow-camera-far={11}
             shadow-bias={-0.0009}
             shadow-normalBias={0.02}
           />
-        </>
-      )}
+      </>
     </group>
   );
 }

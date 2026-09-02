@@ -288,6 +288,13 @@ export function furnishHotelRoom(
       title: "Notice to guests",
       // The altered one moves breakfast to a floor the hotel does not have,
       // and stops talking about rooms.
+      //
+      // The line about every room being alike is the hotel explaining the
+      // thing the whole game rests on, in the flattest language it has. A
+      // player who works out for themselves that floor four is furnished
+      // exactly like floor five should read that as the building repeating,
+      // not as the game having forgotten to change something, and this is the
+      // first printed thing they see.
       lines: alteredNotice
         ? [
             "Breakfast is served on the ground floor",
@@ -295,6 +302,9 @@ export function furnishHotelRoom(
             "",
             "The stairs are not in service.",
             "Guests are asked to use the lift.",
+            "",
+            "Every room in this hotel is alike,",
+            "for your comfort.",
             "",
             "Please do not disturb the other guests.",
           ]
@@ -304,6 +314,9 @@ export function furnishHotelRoom(
             "",
             "The stairs are not in service.",
             "Guests are asked to use the lift.",
+            "",
+            "Every room in this hotel is alike,",
+            "for your comfort.",
             "",
             "Please do not disturb the other rooms.",
           ],

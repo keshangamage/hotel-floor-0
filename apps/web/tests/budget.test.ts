@@ -88,7 +88,10 @@ for (const floor of [5, 4, 0]) {
     return [...text.matchAll(/shadow-mapSize=\{\[(\d+)/g)].map((m) => Number(m[1]));
   });
   check("shadow maps are declared", sizes.length > 0, `${sizes.length} found`);
-  check("and none is larger than 2048", sizes.every((s) => s <= 2048), sizes.join(", "));
+  // Tightened from 2048. A shadow map is the whole scene drawn again from
+  // that light, every frame, and three lights cast: the resolution is a fill
+  // cost multiplied by three before anything else in the frame is drawn.
+  check("and none is larger than 1024", sizes.every((s) => s <= 1024), sizes.join(", "));
 }
 
 // Nothing ships that nothing draws.
@@ -174,6 +177,35 @@ for (const floor of [5, 4, 0]) {
   check("it renders at a low resolution", /resolution=\{256\}/.test(source));
   check("and does not blur", /blur=\{\[0, 0\]\}/.test(source),
     "blur is extra passes on the most expensive object in the game");
+}
+
+// Lights are never mounted and unmounted, only dimmed.
+//
+// The renderer builds its shaders around how many lights are in the scene and
+// how many of them cast, so adding or removing one recompiles every material
+// there is. That is a stall of hundreds of milliseconds, and it used to happen
+// on every light switch, every lamp floor zero puts out, and every press of F.
+{
+  const { readFileSync } = await import("node:fs");
+  const read = (f: string) => readFileSync(`apps/web/components/${f}`, "utf8");
+
+  const lamp = read("lighting/CeilingLamp.tsx");
+  check("a ceiling lamp keeps its light and dims it",
+    !/\{lit && \(/.test(lamp) && /intensity=\{lit \? spec\.intensity : 0\}/.test(lamp));
+
+  const hotel = read("lighting/HotelLighting.tsx");
+  check("so does a bare bulb",
+    !/\{lit \? \(/.test(hotel) && /intensity=\{lit \? spec\.intensity : 0\}/.test(hotel));
+  check("and an unlit room spot keeps casting, on paper",
+    !/castShadow: false/.test(hotel),
+    "how many lights cast is part of the shader key too");
+
+  const torch = read("player/Flashlight.tsx");
+  check("and the torch is neither unmounted nor hidden",
+    !/visible=\{on\}/.test(torch) && /spot\.intensity = 0/.test(torch),
+    "F is a key the player presses constantly");
+  check("but it stops redrawing its shadow when it is off",
+    /spot\.shadow\.autoUpdate = false/.test(torch));
 }
 
 console.log(fail === 0 ? "\nALL CHECKS PASSED" : `\n${fail} CHECK(S) FAILED`);

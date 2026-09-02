@@ -243,6 +243,14 @@ check("the reference floor is never anomalous",
     // Everything else about it is the same piece of paper.
     check("and is otherwise the same notice",
       text.includes("stairs are not in service") && text.includes("use the lift"));
+    // The line that carries the premise. A player who notices floor four is
+    // furnished exactly like floor five has to read that as the building
+    // repeating rather than the game forgetting, and this is where they are
+    // told. It has to survive the alteration, or the fault becomes the excuse.
+    check("and still says the rooms are alike",
+      was.includes("every room in this hotel is alike")
+        && text.includes("every room in this hotel is alike"),
+      "it is the only place the game explains itself");
   }
 
   // It must not touch the plan, or it could be spotted without reading.
