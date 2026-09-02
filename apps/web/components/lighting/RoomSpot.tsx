@@ -25,7 +25,9 @@ export function RoomSpot({ spec }: { spec: LampSpec }) {
         distance={spec.distance ?? 8}
         castShadow={spec.castShadow}
         // A 1024 map stretched over the whole room gives soft, vague contacts.
-        shadow-mapSize={[2048, 2048]}
+        // A shadow map is the scene drawn again from the lamp, every frame.
+        // Three lights cast here, so this number is a cost paid three times.
+        shadow-mapSize={[1024, 1024]}
         shadow-camera-near={0.2}
         shadow-camera-far={9}
         shadow-bias={-0.0007}

@@ -26,13 +26,17 @@ Then open the app and click to lock the pointer.
 | Mouse         | Look       |
 | `Shift`       | Sprint     |
 | `Ctrl` / `C`  | Crouch     |
-| `E`           | Interact   |
+| `E`           | Interact, and put down what you are reading |
 | `F`           | Flashlight |
+| `Q`           | Write this floor into the notebook |
+| `R`           | Read the notebook back |
+| `` ` ``       | Frame rate |
 | `Esc`         | Pause      |
 
 Bindings are read from `KeyboardEvent.code`, so WASD stays in the same physical
-place on non-QWERTY layouts. `F` currently toggles flashlight state only; no
-light is attached to it yet.
+place on non-QWERTY layouts. `Q` and `R` do nothing until the notebook has been
+picked up. The torch runs on a cell that lasts about five minutes of light;
+spares are behind the locked door on each floor.
 
 ## Layout
 
@@ -158,4 +162,26 @@ Turborepo can share its build cache across machines and CI with
 ```bash
 bunx turbo login
 bunx turbo link
+```
+
+## Deploying
+
+The app is `apps/web` in a Turborepo workspace, so the only setting that matters
+is where Vercel starts from:
+
+- **Root Directory**: `apps/web`
+- **Include source files outside of the Root Directory**: on, so the workspace
+  packages resolve
+- Framework, build and install commands: leave on the defaults. Vercel detects
+  Next.js and Turborepo from there.
+
+There is deliberately no `vercel.json`. The root directory is a project setting
+rather than a file, and a config file that disagreed with it would be harder to
+diagnose than no file at all.
+
+To check a production build locally first:
+
+```bash
+bunx turbo run build --filter=web
+bunx turbo run start --filter=web
 ```

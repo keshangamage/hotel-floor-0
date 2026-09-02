@@ -30,7 +30,10 @@ export function HotelLighting({ layout }: { layout: FloorLayout }) {
           return (
             <RoomSpot
               key={index}
-              spec={lit ? spec : { ...spec, intensity: 0, castShadow: false }}
+              // castShadow is left alone: how many lights cast is part of the
+              // shader key too, so turning it off recompiles just as surely as
+              // removing the light would.
+              spec={lit ? spec : { ...spec, intensity: 0 }}
             />
           );
         }
@@ -39,15 +42,13 @@ export function HotelLighting({ layout }: { layout: FloorLayout }) {
           return (
             <group key={index}>
               {spec.fixture === "table" ? <TableLamp spec={spec} lit={lit} /> : null}
-              {lit ? (
-                <pointLight
-                  position={spec.position}
-                  color={spec.color}
-                  intensity={spec.intensity}
-                  distance={spec.distance ?? 6}
-                  decay={2}
-                />
-              ) : null}
+              <pointLight
+                position={spec.position}
+                color={spec.color}
+                intensity={lit ? spec.intensity : 0}
+                distance={spec.distance ?? 6}
+                decay={2}
+              />
             </group>
           );
         }

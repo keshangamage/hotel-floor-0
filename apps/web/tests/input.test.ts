@@ -128,6 +128,23 @@ check("double attach then double detach leaves no listener", !input.isDown("forw
   });
   check("and every key that is bound is one of them", undocumented.length === 0,
     undocumented.join(", ") || `${new Set(bound).size} keys`);
+
+  // The README lists them too, and went stale: it was missing three keys and
+  // still said the flashlight had no light attached to it. It writes the
+  // movement keys as `W A S D` where the overlay says WASD, so compare on the
+  // backticked spans with their spaces taken out rather than on the raw text.
+  const readme = readFileSync("README.md", "utf8");
+  // Fenced blocks first, or a single backtick pattern swallows whole sections
+  // of shell commands between them.
+  const prose = readme.replace(/```[\s\S]*?```/g, "");
+  const spans = [...prose.matchAll(/`{1,2}([^`\n]+)`{1,2}/g)]
+    .map((m) => m[1]!.replace(/\s+/g, ""));
+  const undocumentedThere = [...new Set(bound)].filter((letter) => {
+    const under = COVERED.get(letter) ?? letter;
+    return !spans.some((span) => span === under || span === letter);
+  });
+  check("and the README lists them as well", undocumentedThere.length === 0,
+    undocumentedThere.join(", ") || "two places, one set of keys");
 }
 
 // The rule is written down exactly once, in the guest's hand, and the notebook

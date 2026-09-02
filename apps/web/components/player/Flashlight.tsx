@@ -49,7 +49,15 @@ export function Flashlight() {
 
   useFrame((state, delta) => {
     const spot = light.current;
-    if (!spot || !on) return;
+    if (!spot) return;
+
+    // Off: dark, and not paying for a shadow pass it cannot be seen in.
+    if (!on) {
+      spot.intensity = 0;
+      spot.shadow.autoUpdate = false;
+      return;
+    }
+    spot.shadow.autoUpdate = true;
 
     const store = useGameStore.getState();
     if (store.phase === "playing") {
@@ -83,10 +91,10 @@ export function Flashlight() {
       <spotLight
         ref={light}
         target={target}
-        // Hidden rather than unmounted: rebuilding the shadow map on every
-        // press would hitch, and an invisible light is skipped before it costs
-        // a pass.
-        visible={on}
+        // Neither unmounted nor hidden. Both change how many lights the
+        // renderer sees, and it recompiles every material in the scene to
+        // match, which is a stall on a key the player presses constantly. It
+        // is turned off by going dark, and its shadow map stops redrawing.
         color={COLOR}
         intensity={60}
         angle={0.44}
